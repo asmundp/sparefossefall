@@ -1,0 +1,736 @@
+<title>Sparefossefall</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: one narrow working column — inputs on top, then the waterfall as horizontal rows that work at phone width. */
+:root {
+  --bg: #F4F5F2; --surface: #FFFFFF; --ink: #23272E; --muted: #5B6573; --line: #DFE1DB; --tint: #ECEAE4;
+  --sum: #2B2F36; --ned: #D9573F; --spar: #2E8B57; --pensjon: #5B8DB8; --opp: #8FBF9F;
+  --warn-bg: #FBEAE5; --warn-ink: #9A2F1B; --note-bg: #E8EFF6; --note-ink: #2C4F70;
+  --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #16191D; --surface: #1F2328; --ink: #E7E9EC; --muted: #9AA4B1; --line: #333941; --tint: #262B31;
+  --sum: #C9CED6; --ned: #E8705A; --spar: #4CB37A; --pensjon: #7DA8D0; --opp: #86B896;
+  --warn-bg: #3A221D; --warn-ink: #F4B3A5; --note-bg: #1E2C3A; --note-ink: #B5CCE3; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #16191D; --surface: #1F2328; --ink: #E7E9EC; --muted: #9AA4B1; --line: #333941; --tint: #262B31;
+  --sum: #C9CED6; --ned: #E8705A; --spar: #4CB37A; --pensjon: #7DA8D0; --opp: #86B896;
+  --warn-bg: #3A221D; --warn-ink: #F4B3A5; --note-bg: #1E2C3A; --note-ink: #B5CCE3; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font: 400 15px/1.5 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 48px }
+main { max-width: 820px; margin: 0 auto; display: grid; gap: 20px }
+h1 { font: 800 clamp(30px, 6vw, 44px)/1.05 var(--display); letter-spacing: -0.02em; margin: 0; text-wrap: balance }
+h2 { font: 600 19px/1.25 var(--display); margin: 0; text-wrap: balance }
+p { margin: 0 }
+.lede { color: var(--muted); max-width: 62ch; margin-top: 8px }
+.privacy { display: inline-flex; gap: 8px; align-items: center; margin-top: 12px; font-size: 13.5px; color: var(--muted) }
+.privacy::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--spar) }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: grid; gap: 16px; min-width: 0 }
+.step { display: grid; gap: 8px }
+.label { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted) }
+.help { font-size: 13.5px; color: var(--muted) }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center }
+.btn { font: 600 15px var(--body); border-radius: 9px; padding: 10px 16px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; min-height: 44px }
+.btn.primary { background: var(--sum); color: var(--surface); border-color: var(--sum) }
+.btn:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--pensjon); outline-offset: 2px }
+.btn.link { border: 0; background: none; padding: 10px 4px; color: var(--muted); text-decoration: underline; font-weight: 500 }
+input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none }
+.chips { display: flex; flex-wrap: wrap; gap: 8px }
+.chip { font-size: 13.5px; padding: 6px 10px; border-radius: 999px; background: var(--tint); display: inline-flex; gap: 6px; align-items: baseline; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.chip b { font-family: var(--mono); font-weight: 500 }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px }
+.field { display: flex; align-items: center; gap: 8px }
+.field input, select { font: 500 15px var(--body); padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); min-height: 44px }
+.field input { width: 90px; font-family: var(--mono); text-align: right }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden }
+.seg button { font: 600 14px var(--body); padding: 9px 14px; border: 0; background: var(--surface); color: var(--muted); cursor: pointer; min-height: 42px }
+.seg button[aria-pressed="true"] { background: var(--sum); color: var(--surface) }
+.seg button:focus-visible { outline: 3px solid var(--pensjon); outline-offset: -3px }
+
+.msg { border-radius: 10px; padding: 12px 14px; font-size: 14.5px }
+.msg.advarsel, .msg.feil { background: var(--warn-bg); color: var(--warn-ink) }
+.msg.merk, .msg.eksempel { background: var(--note-bg); color: var(--note-ink) }
+.msg strong { font-weight: 600 }
+.msgs { display: grid; gap: 10px }
+
+.head { display: grid; gap: 4px }
+.headline { font: 800 clamp(22px, 4.6vw, 30px)/1.15 var(--display); letter-spacing: -0.01em; text-wrap: balance }
+.headline .n { color: var(--spar) }
+.sub { color: var(--muted); font-size: 14px }
+
+/* Waterfall */
+.wf { display: grid; gap: 0; font-variant-numeric: tabular-nums }
+.wf-row { display: grid; grid-template-columns: minmax(96px, 30%) 1fr; align-items: center; min-height: 40px; border-radius: 6px }
+.wf-row.saving { background: var(--tint) }
+.wf-row.first-saving { margin-top: 10px; border-top-left-radius: 8px; border-top-right-radius: 8px }
+.wf-name { font-size: 14px; font-weight: 500; padding: 0 10px 0 8px; line-height: 1.2; min-width: 0; overflow-wrap: anywhere; hyphens: auto }
+.wf-name small { display: block; font-size: 12px; color: var(--muted); font-weight: 400 }
+.wf-track { position: relative; height: 40px; margin-right: 8px }
+.wf-bar { position: absolute; top: 7px; height: 26px; border-radius: 4px; min-width: 2px }
+.wf-val { position: absolute; top: 0; height: 40px; display: flex; align-items: center; font: 500 13px var(--mono); white-space: nowrap; padding: 0 6px }
+.wf-val.in { color: #fff }
+.wf-zero { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--muted); opacity: .5 }
+.wf-axis { display: grid; grid-template-columns: minmax(96px, 30%) 1fr; height: 22px; font: 500 11.5px var(--mono); color: var(--muted) }
+.wf-axis .t { position: absolute; transform: translateX(-50%); white-space: nowrap }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; color: var(--muted) }
+.legend span { display: inline-flex; gap: 6px; align-items: center }
+.legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums }
+td { padding: 7px 6px; border-bottom: 1px solid var(--line) }
+th { text-align: left; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding: 6px; border-bottom: 1px solid var(--muted) }
+th.num { text-align: right }
+td.st { color: var(--muted); font-size: 13.5px }
+td.num { text-align: right; font-family: var(--mono); white-space: nowrap }
+tr.tot td { font-weight: 600; border-bottom-color: var(--muted) }
+tr.sub td:first-child { padding-left: 22px; color: var(--muted) }
+.tablewrap { overflow-x: auto }
+details summary { cursor: pointer; font-weight: 600; min-height: 32px; display: flex; align-items: center }
+details ul { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size: 14px; display: grid; gap: 4px; max-width: 70ch }
+.foot { font-size: 13px; color: var(--muted); max-width: 70ch }
+@media (max-width: 480px) { .panel { padding: 14px } .wf-name { font-size: 13px } .wf-val { font-size: 12px } }
+@media (prefers-reduced-motion: no-preference) { .wf-bar { transition: left .3s, width .3s } }
+</style>
+
+<main lang="nb">
+  <header>
+    <h1>Sparefossefall</h1>
+    <p class="lede">Hvor går bruttolønnen? Last inn skattemeldingen for de to siste årene, så viser grafen skatt, renter, forbruk og hvor mye du faktisk sparte, i prosent av bruttolønn.</p>
+    <p class="privacy">Filene leses bare på denne enheten. Ingenting lastes opp eller lagres.</p>
+  </header>
+
+  <section class="panel" aria-labelledby="inn">
+    <h2 id="inn">Dine filer</h2>
+    <div class="step">
+      <span class="label">1 · Skattemeldinger</span>
+      <p class="help">Last ned skattemeldingen som JSON fra Skatteetaten for siste år og året før. Velg begge, i hvilken som helst rekkefølge. Årstallet leses fra filene.</p>
+      <div class="row">
+        <label class="btn primary" for="filer">Velg skattemeldinger</label>
+        <input type="file" id="filer" multiple>
+        <button class="btn link" id="nullstill" type="button" hidden>Fjern filene</button>
+      </div>
+      <div class="chips" id="chips"></div>
+    </div>
+
+    <div class="grid2">
+      <div class="step">
+        <span class="label">2 · Tjenestepensjon</span>
+        <p class="help">Arbeidsgivers innskudd står ikke i skattemeldingen. Velg egnedata.json, eller skriv inn satsen.</p>
+        <div class="row">
+          <label class="btn" for="egnedata">Velg egnedata.json</label>
+          <input type="file" id="egnedata">
+          <div class="field"><input id="otp" inputmode="decimal" value="2" aria-label="Arbeidsgivers innskudd i prosent av lønn"><span>% av lønn</span></div>
+        </div>
+        <p class="help" id="otpinfo">Minstekravet er 2 %, snittet rundt 4 %.</p>
+      </div>
+      <div class="step">
+        <span class="label">3 · Visning</span>
+        <div class="seg" role="group" aria-label="Visning">
+          <button type="button" id="v-pst" aria-pressed="true">Prosent</button>
+          <button type="button" id="v-kr" aria-pressed="false">Kroner</button>
+        </div>
+        <p class="help" id="visinfo">Prosent er anonymt og egnet for deling.</p>
+        <label class="help" for="kurs">Fondskjøp verdsatt til</label>
+        <select id="kurs">
+          <option value="snitt">snitt av start- og sluttkurs</option>
+          <option value="start">kursen ved årets start</option>
+          <option value="slutt">kursen ved årets slutt</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" aria-live="polite" id="resultat">
+    <div class="msgs" id="msgs"></div>
+    <div class="head">
+      <p class="headline" id="headline"></p>
+      <p class="sub" id="sub"></p>
+    </div>
+    <div class="wf" id="wf"></div>
+    <div class="legend">
+      <span><i style="background:var(--sum)"></i>Sum</span>
+      <span><i style="background:var(--ned)"></i>Skatt, renter og forbruk</span>
+      <span><i style="background:var(--spar)"></i>Egen sparing</span>
+      <span><i style="background:var(--pensjon)"></i>Pensjonssparing</span>
+      <span><i style="background:var(--opp)"></i>Annen inntekt</span>
+    </div>
+    <div class="tablewrap"><table id="tabell"></table></div>
+    <div class="step" id="laanblokk">
+      <h2>Lånene dine</h2>
+      <div class="tablewrap"><table id="laan"></table></div>
+      <div class="msgs" id="laanmerk"></div>
+    </div>
+    <p class="foot" id="note"></p>
+    <p class="foot">Vil du dele grafen? Ta et skjermbilde i prosentvisning; det inneholder ingen navn, beløp eller banker.</p>
+  </section>
+
+  <section class="panel">
+    <details>
+      <summary>Slik regnes tallene</summary>
+      <ul>
+        <li>Egen sparing = nettokjøp av fond, aksjer og krypto + endring i bankinnskudd + nedbetalt gjeld − nye lån + egen pensjonspremie.</li>
+        <li>Nettokjøp = endring i antall andeler × kurs. Kursendringer er ikke sparing.</li>
+        <li>Lån flyttet mellom banker (refinansiering) pares mot hverandre etter størrelse innen samme lånetype.</li>
+        <li>Lånetype: Lånekassen er studielån. Boligkreditt, felles lån eller lån over 500 000 kr regnes som boliglån. Resten er annen gjeld.</li>
+        <li>Forbruk = lønn + annen kontantinntekt − skatt − renter − egen sparing. Det er en restpost.</li>
+        <li>Skatt er et eget estimat: trygdeavgift, trinnskatt, 22 % på alminnelig inntekt og grov formuesskatt. Ikke med: skattefradrag for pensjonister, fagforeningskontingent, BSU, næringsinntekt, utenlandsk skatt.</li>
+        <li>Folketrygd: 18,1 % av pensjonsgivende inntekt opp til 7,1 G, der G er gjennomsnittlig grunnbeløp for inntektsåret.</li>
+        <li>Rente per lånetype = betalte renter i året ÷ saldo ved årets start. År igjen regnes som et annuitetslån: årlig betaling = renter + nedbetaling i året, og år igjen = −ln(1 − r·B/A) ÷ ln(1 + r), der B er saldo ved årets slutt. Lån flyttet mellom banker regnes samlet innen samme lånetype.</li>
+        <li>Kjøper du bolig, regnes lånet som negativ sparing mens boligen ikke telles med. Siden varsler når boliglånet øker mye.</li>
+        <li>Ikke med: boligsameiets felles gjeld, barnetrygd og andre stønader som ikke står i skattemeldingen.</li>
+      </ul>
+    </details>
+  </section>
+</main>
+
+<script>
+// ---------------------------------------------------------------------------
+// Beregningsmotor – port av sparefossefall.py. Kjører bare i nettleseren.
+// Endringer fra Python-versjonen:
+//  1. Tak for folketrygdopptjening = 7,1 × gjennomsnittlig G for inntektsåret (G_snitt),
+//     ikke 7,1 × siste G.
+//  2. Varsel ved nytt eller økt boliglån (typisk boligkjøp), fordi boligen ikke regnes som eiendel.
+// ---------------------------------------------------------------------------
+const PARAM = {
+  2024: { trygd_lonn: 0.078, trygd_pensjon: 0.051, alminnelig: 0.22, personfradrag: 88250,
+    trinn: [[208050, 0.017], [292850, 0.040], [670000, 0.136], [937900, 0.166], [1350000, 0.176]],
+    formue_innslag: 1700000, formue_sats: 0.010, formue_hoy_innslag: 20000000, formue_hoy_sats: 0.011,
+    aksjerabatt: 0.20, oppjustering: 1.72, G_snitt: 122225 },
+  2025: { trygd_lonn: 0.077, trygd_pensjon: 0.051, alminnelig: 0.22, personfradrag: 108550,
+    trinn: [[217400, 0.017], [306050, 0.040], [697150, 0.137], [942400, 0.167], [1410750, 0.177]],
+    formue_innslag: 1760000, formue_sats: 0.010, formue_hoy_innslag: 20700000, formue_hoy_sats: 0.011,
+    aksjerabatt: 0.20, oppjustering: 1.72, G_snitt: 128116 },
+};
+const FT_SATS = 0.181;
+const FT_TAK_G = 7.1;
+const SKATTEFRI = ["UTGGJ", "TFRI"];
+const BOLIGKJOP_GRENSE = 200000;   // nytt/økt boliglån over dette gir varsel
+
+class Feil extends Error {}
+
+const arr = (x) => (Array.isArray(x) ? x : []);
+const has = (o, k) => o != null && Object.prototype.hasOwnProperty.call(o, k);
+
+function num(x) {
+  if (x === null || x === undefined) return 0;
+  if (typeof x === "object") return num(x.beloep);
+  const s = String(x).replace(/,/g, ".").trim();
+  if (s === "") return 0;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function parseJson(tekst, navn) {
+  try { return JSON.parse(tekst); } catch (e) { /* prøv igjen uten kontrolltegn (som strict=False) */ }
+  try { return JSON.parse(tekst.replace(/[\u0000-\u001F]/g, " ")); }
+  catch (e) { throw new Feil(`Kunne ikke lese ${navn}: filen er ikke gyldig JSON. Last ned filen på nytt fra Skatteetaten.`); }
+}
+
+function les(tekst, navn) {
+  const data = parseJson(tekst, navn);
+  if (!data || typeof data !== "object") throw new Feil(`Kunne ikke lese ${navn}: uventet innhold.`);
+  const v = has(data, "visningsdata") ? data.visningsdata : data;
+  const aar = Math.trunc(num(v && v.inntektsaar) || num((data.metavisningsdata || {}).inntektsaar));
+  if (!aar) throw new Feil(`Fant ikke inntektsår i ${navn}. Er dette en skattemelding fra Skatteetaten?`);
+  return { aar, v, data };
+}
+
+function andel(k) {
+  for (const n of ["prosentandelAvGjeldInnskuddOgRente", "prosentandelAvGjeldOgPaaloepteRenter"]) {
+    if (k[n]) return num(k[n]) / 100;
+  }
+  return 1.0;
+}
+function egen(k, andelFelt, totalFelt) {
+  if (has(k, andelFelt)) return num(k[andelFelt]);
+  return num(k[totalFelt]) * andel(k);
+}
+
+function beholdning(v) {
+  const b = { innskudd: 0, gjeld: new Map(), papirer: new Map(), renter_betalt: 0, renter_mottatt: 0, eiendommer: 0, laan: [] };
+  for (const k of arr(v.konto)) {
+    b.innskudd += egen(k, "andelAvInnskudd", "innskudd");
+    const rk = egen(k, "andelAvPaaloepteRenter", "paaloepteRenter");
+    b.renter_betalt += rk;
+    b.renter_mottatt += egen(k, "andelAvOpptjenteRenter", "opptjenteRenter");
+    const g = egen(k, "andelAvGjeld", "gjeld");
+    if (g > 0) {
+      const navn = String(k.bankensNavn || "").toUpperCase();
+      let typ;
+      if (navn.includes("LÅNEKASSE") || k.organisasjonsnummer === "960885406") typ = "studielaan";
+      else if (navn.includes("BOLIGKREDITT") || andel(k) < 1 || g >= 500000) typ = "bolig";
+      else typ = "annen";
+      const id = k.id || `g${b.gjeld.size}`;
+      b.gjeld.set(id, [typ, g]);
+      b.laan.push({ id, typ, g, renter: rk });
+    } else if (rk > 0 && k.id) {
+      b.laan.push({ id: k.id, typ: null, g: 0, renter: rk });   // lån innfridd i løpet av året; type hentes fra året før
+    }
+  }
+  const papir = (nokkel, antall, verdi, notert = true) => {
+    if (b.papirer.has(nokkel)) {
+      const [a0, v0, n0] = b.papirer.get(nokkel);
+      b.papirer.set(nokkel, [a0 + antall, v0 + verdi, n0]);
+    } else b.papirer.set(nokkel, [antall, verdi, notert]);
+  };
+  for (const f of arr(v.verdipapirfond)) {
+    if (f.antallAndeler) papir(f.isinnummer || f.id, num(f.antallAndeler),
+      num(f.verdiFoerVerdsettingsrabattForAndelIAksjedel) + num(f.verdiFoerVerdsettingsrabattForAndelIRentedel));
+  }
+  for (const a of arr(v.aksjesparekonto)) {
+    const prod = arr(a.finansprodukt);
+    const tot = prod.reduce((s, p) => s + num(p.antall), 0);
+    const verdi = num(a.verdiFoerVerdsettingsrabattForAksjedel);
+    for (const p of prod) {
+      const vekt = tot ? num(p.antall) / tot : 0;
+      papir("ASK:" + (p.isinnummer || p.id || ""), num(p.antall), verdi * vekt);
+    }
+  }
+  for (const felt of ["aksjeIAksjonaerregisteret", "aksjeIkkeIAksjonaerregisteret"]) {
+    for (const a of arr(v[felt])) {
+      if (a.antallAksjer) papir(a.isinnummer || a.id, num(a.antallAksjer),
+        num(a.verdiFoerVerdsettingsrabattForAksje), Boolean(a.isinnummer));
+    }
+  }
+  for (const x of arr(v.virtuellEiendel)) {
+    papir("VIRT:" + (x.navn || x.id || ""), num(x.antall), num(x.formuesverdiforVirtuellEiendel));
+  }
+  for (const e of arr(v.fastEiendom)) b.eiendommer += arr(e.fastEiendomSomFormuesobjekt).length;
+  return b;
+}
+
+function nettokjop(p0, p1, kurs = "snitt") {
+  let tot = 0;
+  for (const n of new Set([...p0.keys(), ...p1.keys()])) {
+    const [a0, v0] = p0.get(n) || [0, 0, true];
+    const [a1, v1] = p1.get(n) || [0, 0, true];
+    const da = a1 - a0;
+    if (Math.abs(da) < 1e-9) continue;
+    const k0 = a0 ? v0 / a0 : null;
+    const k1 = a1 ? v1 / a1 : null;
+    let pris;
+    if (k0 === null) pris = k1;
+    else if (k1 === null) pris = k0;
+    else pris = kurs === "start" ? k0 : kurs === "slutt" ? k1 : (k0 + k1) / 2;
+    tot += da * pris;
+  }
+  return tot;
+}
+
+function gjeldsendring(g0, g1) {
+  const res = { bolig: 0, annen: 0, nye: 0, nye_bolig: 0 };
+  const bokfor = (typ, endring) => {
+    if (endring >= 0) res[typ === "bolig" ? "bolig" : "annen"] += endring;
+    else {
+      res.nye += endring;
+      if (typ === "bolig") res.nye_bolig -= endring;
+    }
+  };
+  for (const [i, [typ, g]] of g0) if (g1.has(i)) bokfor(typ, g - g1.get(i)[1]);
+  for (const typ of ["bolig", "studielaan", "annen"]) {
+    const gamle = [...g0].filter(([i, [t]]) => !g1.has(i) && t === typ).map(([, [, g]]) => g).sort((a, b) => b - a);
+    const nye = [...g1].filter(([i, [t]]) => !g0.has(i) && t === typ).map(([, [, g]]) => g).sort((a, b) => b - a);
+    for (let k = 0; k < Math.max(gamle.length, nye.length); k++) {
+      bokfor(typ, (k < gamle.length ? gamle[k] : 0) - (k < nye.length ? nye[k] : 0));
+    }
+  }
+  return res;
+}
+
+const sum = (xs, f) => xs.reduce((s, x) => s + f(x), 0);
+
+function lonnFra(v) {
+  let lonn = 0;
+  for (const ag of arr(v.arbeidsgiver))
+    for (const y of arr(ag.samledeYtelserFraArbeidsgiverPerBehandlingsart))
+      if (y.behandlingsart === "LONN") lonn += num(y.beloep);
+  return lonn;
+}
+
+function inntektOgSkatt(v, b, p) {
+  let lonn = 0, ytelser = 0;
+  for (const ag of arr(v.arbeidsgiver)) {
+    for (const y of arr(ag.samledeYtelserFraArbeidsgiverPerBehandlingsart)) {
+      const art = y.behandlingsart || "";
+      if (art === "LONN") lonn += num(y.beloep);
+      else if (!SKATTEFRI.some((s) => art.startsWith(s))) ytelser += num(y.beloep);
+    }
+  }
+  for (const e of arr(v.avkortetFordelVedElektroniskKommunikasjon)) ytelser += num(e.beloep);
+  const pensjon = sum(arr(v.pensjonsinntektFraArbeidsforhold), (x) => num(x.pensjonsinntektPrSkattleggingsperiode));
+  let utbytte = 0, gevinst = 0;
+  for (const felt of ["aksjeIAksjonaerregisteret", "aksjeIkkeIAksjonaerregisteret"]) {
+    for (const a of arr(v[felt])) {
+      utbytte += num(a.skattepliktigUtbytte);
+      gevinst += num(a.skattepliktigGevinstVedRealisasjonAvAksje);
+    }
+  }
+  for (const f of arr(v.verdipapirfond)) gevinst += num(f.skattepliktigGevinstVedRealisasjonAvAndelIAksjedel);
+  const kundeutbytte = sum(arr(v.skattepliktigKundeutbytteUtenforVirksomhet), (x) => num(x.utbetaltBeloep));
+  const sameie = arr(v.boligsameie);
+  const sameieInnt = sum(sameie, (s) => num(s.andelAvInntektIBoligsameie));
+  const sameieRenter = sum(sameie, (s) => num(s.andelAvFradragsberettigedeRenterIBoligsameie));
+  const minstefradrag = sum(arr(v.minstefradragOgKostnaderKnyttetTilArbeidOgAnnenInntekt), (m) => num(m.minstefradragIInntekt));
+  const foreldre = sum(arr(v.passOgStellAvBarn), (x) => num(x.minAndelForeldrefradrag));
+  const gaver = sum(arr(v.fradragForGaverTilFrivilligeOrganisasjoner), (x) => num(x.fradragForGaverTilFrivilligeOrganisasjoner));
+  const premie = sum(arr(v.pensjonspremieIArbeidsforhold),
+    (x) => num(x.fradragForPensjonspremieTilPensjonsordningIArbeidsforholdFradragsberettigetBeloep));
+
+  const lonnsinntekt = lonn + ytelser;
+  const personinntekt = lonnsinntekt + pensjon;
+  const trygd = p.trygd_lonn * lonnsinntekt + p.trygd_pensjon * pensjon;
+  const trinnskatt = p.trinn.reduce((s, [grense, sats], i) =>
+    s + Math.max(0, personinntekt - grense) * (sats - (i ? p.trinn[i - 1][1] : 0)), 0);
+  const alminnelig = personinntekt + b.renter_mottatt + kundeutbytte + sameieInnt
+    + p.oppjustering * (utbytte + gevinst)
+    - minstefradrag - b.renter_betalt - sameieRenter - foreldre - gaver - premie;
+  const skattAlm = p.alminnelig * Math.max(0, alminnelig - p.personfradrag);
+
+  const papirer = [...b.papirer];
+  const papirBrutto = sum(papirer, ([, [, vv]]) => vv);
+  const papirRabatt = sum(papirer.filter(([n]) => !String(n).startsWith("VIRT:")), ([, [, vv]]) => vv) * p.aksjerabatt;
+  let boligVerdi = 0;
+  for (const e of arr(v.fastEiendom)) for (const f of arr(e.fastEiendomSomFormuesobjekt)) boligVerdi += num(f.formuesverdiForFormuesandel);
+  const annet = sum(arr(v.kjoeretoey), (k) => num(k.formuesverdiForFormuesandelForKjoeretoey))
+    + sum(arr(v.fritidsbaatMedSalgsverdiOverSalgsverdigrense), (x) => num(x.formuesverdiForFritidsbaatMedSalgsverdiOverSalgsverdigrense))
+    + sum(sameie, (s) => num(s.andelAvAnnenFormueIBoligsameie));
+  const gjeld = sum([...b.gjeld.values()], ([, g]) => g) + sum(sameie, (s) => num(s.andelAvFellesgjeldIBoligsameie));
+  const brutto = b.innskudd + papirBrutto + boligVerdi + annet;
+  const gjeldRed = brutto ? gjeld * (1 - papirRabatt / brutto) : gjeld;
+  const netto = b.innskudd + papirBrutto - papirRabatt + boligVerdi + annet - gjeldRed;
+  const formuesskatt = p.formue_sats * Math.max(0, Math.min(netto, p.formue_hoy_innslag) - p.formue_innslag)
+    + p.formue_hoy_sats * Math.max(0, netto - p.formue_hoy_innslag);
+
+  return { lonn, annen_inntekt: pensjon + b.renter_mottatt + kundeutbytte + utbytte, pensjonsgivende: lonnsinntekt,
+    premie, skatt: trygd + trinnskatt + skattAlm + formuesskatt, pensjon_mottatt: pensjon };
+}
+
+// ---------------------------------------------------------------------------
+// Rente og år igjen per lånetype (annuitet).
+//   rente r   = betalte renter i året / saldo ved årets start
+//   A         = betalte renter + nedbetaling i året
+//   år igjen  = −ln(1 − r·B/A) / ln(1 + r), B = saldo ved årets slutt
+// Refinansierte lån havner i samme lånetype og regnes derfor samlet.
+// ---------------------------------------------------------------------------
+const LAANTYPER = [["bolig", "Boliglån"], ["studielaan", "Studielån"], ["annen", "Annen gjeld"]];
+function laanstatus(b0, b1, aar) {
+  const ut = [];
+  for (const [typ, navn] of LAANTYPER) {
+    const B0 = sum([...b0.gjeld.values()].filter(([t]) => t === typ), ([, g]) => g);
+    const iAar = b1.laan.filter((l) => (l.typ || (b0.gjeld.get(l.id) || [])[0]) === typ);
+    const B = sum(iAar, (l) => l.g);
+    const R = sum(iAar, (l) => l.renter);
+    if (B0 <= 0 && B <= 0) continue;
+    const ider0 = new Set([...b0.gjeld].filter(([, [t]]) => t === typ).map(([i]) => i));
+    const ider1 = new Set(iAar.filter((l) => l.g > 0).map((l) => l.id));
+    const refinansiert = [...ider1].some((i) => !ider0.has(i)) && [...ider0].some((i) => !ider1.has(i));
+    const rad = { typ, navn, B0, B, R, rente: null, aar_igjen: null, ferdig: null, A: null, status: "ok", refinansiert };
+    if (B <= 0) { rad.status = "nedbetalt"; ut.push(rad); continue; }
+    if (B0 <= 0) { rad.status = "ny"; ut.push(rad); continue; }
+    const r = R / B0;
+    const A = R + (B0 - B);
+    rad.rente = r; rad.A = A;
+    if (B >= B0) { rad.status = "okt"; ut.push(rad); continue; }
+    let n;
+    if (r <= 0) n = B / A;
+    else {
+      const x = 1 - (r * B) / A;
+      if (x <= 0) { rad.status = "aldri"; ut.push(rad); continue; }
+      n = -Math.log(x) / Math.log(1 + r);
+    }
+    rad.aar_igjen = n;
+    rad.ferdig = Math.round(aar + n);
+    ut.push(rad);
+  }
+  return ut;
+}
+
+// filA, filB: { aar, v } fra les(). Rekkefølgen spiller ingen rolle.
+function beregn(filA, filB, { kurs = "snitt", otp_sats = 0.02, otp_kilde = "antatt", ft_tak = null } = {}) {
+  const varsler = [];
+  if (filA.aar === filB.aar) throw new Feil(`Begge filene gjelder inntektsåret ${filA.aar}. Velg ett år og året før.`);
+  const [ny, gml] = filA.aar > filB.aar ? [filA, filB] : [filB, filA];
+  const aar = ny.aar;
+  if (aar - gml.aar !== 1) varsler.push({ niva: "advarsel", tekst: `Filene gjelder ${gml.aar} og ${aar}, ikke to påfølgende år. Sparingen gjelder da hele perioden, men sammenlignes med lønnen for ett år.` });
+  let p = PARAM[aar];
+  if (!p) {
+    const siste = Math.max(...Object.keys(PARAM).map(Number));
+    p = PARAM[siste];
+    varsler.push({ niva: "advarsel", tekst: `Mangler skatteregler for ${aar}; bruker reglene for ${siste}. Skatt og folketrygdtak blir mindre presise.` });
+  }
+  const b0 = beholdning(gml.v), b1 = beholdning(ny.v);
+  const ink = inntektOgSkatt(ny.v, b1, p);
+  if (ink.lonn <= 0) throw new Feil("Fant ingen lønn i skattemeldingen for siste år. Prosent av bruttolønn kan ikke beregnes.");
+  const gj = gjeldsendring(b0.gjeld, b1.gjeld);
+
+  const fond = nettokjop(b0.papirer, b1.papirer, kurs);
+  const bank = b1.innskudd - b0.innskudd;
+  const finansiell = fond + bank + gj.annen + gj.nye;
+  const bolig = gj.bolig;
+  const nettosparing = finansiell + bolig + ink.premie;
+  const renter = b1.renter_betalt;
+  const forbruk = ink.lonn + ink.annen_inntekt - ink.skatt - renter - nettosparing;
+
+  const tak = ft_tak ? ft_tak : FT_TAK_G * p.G_snitt;
+  const folketrygd = FT_SATS * Math.min(ink.pensjonsgivende, tak);
+  const otp = otp_sats * ink.lonn;
+
+  if (gj.nye_bolig > BOLIGKJOP_GRENSE) {
+    const flereBoliger = b1.eiendommer > b0.eiendommer;
+    varsler.push({ niva: "advarsel", id: "boligkjop", belop: gj.nye_bolig,
+      tekst: (flereBoliger ? "Det ser ut som du har kjøpt bolig dette året: " : "Boliglånet har økt mye dette året: ")
+        + `${kr(gj.nye_bolig)} kr i nytt eller økt boliglån. Lånet og egenkapitalen du brukte trekker ned sparingen, men boligen du fikk regnes ikke som sparing. `
+        + "Egen sparing blir derfor for lav og forbruket for høyt. Bruk tallene med forsiktighet for dette året." });
+  }
+  if (forbruk < 0) varsler.push({ niva: "advarsel", tekst: "Forbruket blir negativt. Det er trolig kommet inn penger som ikke står i skattemeldingen (gave, arv, salg eller partner)." });
+  if (ink.pensjon_mottatt > 0) varsler.push({ niva: "merk", tekst: "Personen mottar pensjon. Skattefradraget for pensjonsinntekt er ikke med, så skatten kan være overvurdert." });
+
+  const L = ink.lonn;
+  const pst = (x) => (100 * x) / L;
+  return { aar, forrige_aar: gml.aar, lonn: L, kurs, otp_sats, otp_kilde, ft_tak: tak, G_snitt: p.G_snitt,
+    annen: pst(ink.annen_inntekt), skatt: -pst(ink.skatt), renter: -pst(renter), forbruk: -pst(forbruk),
+    finansiell: pst(finansiell), bolig: pst(bolig), premie: pst(ink.premie), netto: pst(nettosparing),
+    folketrygd: pst(folketrygd), otp: pst(otp), total: pst(nettosparing + folketrygd + otp),
+    detaljer: { fond: pst(fond), bank: pst(bank), annen_gjeld: pst(gj.annen), nye_laan: pst(gj.nye) },
+    pensjonist: ink.pensjon_mottatt > 0, laan: laanstatus(b0, b1, aar), varsler };
+}
+
+function finnNokkel(data, nokkel) {
+  let funn = [];
+  if (Array.isArray(data)) for (const v of data) funn = funn.concat(finnNokkel(v, nokkel));
+  else if (data && typeof data === "object") {
+    for (const [k, v] of Object.entries(data)) {
+      if (k === nokkel) funn.push(num(v)); else funn = funn.concat(finnNokkel(v, nokkel));
+    }
+  }
+  return funn;
+}
+function innskuddFraEgnedata(tekst, navn) {
+  const data = parseJson(tekst, navn);
+  const funn = finnNokkel(data, "sumAvtaltAarligInnskudd").filter((x) => x > 0);
+  if (!funn.length) throw new Feil(`Fant ikke avtalt årlig innskudd (sumAvtaltAarligInnskudd) i ${navn}.`);
+  return { innskudd: funn.reduce((a, b) => a + b, 0), antall: funn.length };
+}
+
+function kr(x) {
+  return Math.round(x).toLocaleString("nb-NO").replace(/\s/g, " ");
+}
+
+if (typeof module !== "undefined") module.exports = { les, beregn, innskuddFraEgnedata, lonnFra, kr, Feil, PARAM };
+
+
+const EKSEMPEL = [{"visningsdata": {"inntektsaar": "2024", "arbeidsgiver": [{"samledeYtelserFraArbeidsgiverPerBehandlingsart": [{"behandlingsart": "LONN", "beloep": {"beloep": "820000"}}, {"behandlingsart": "FRI", "beloep": "6000"}, {"behandlingsart": "UTGGJ", "beloep": "3000"}]}], "konto": [{"id": "k1", "bankensNavn": "DNB", "innskudd": "210000", "opptjenteRenter": "4200,50"}, {"id": "b1", "bankensNavn": "SPAREBANK 1 BOLIGKREDITT", "gjeld": "3400000", "paaloepteRenter": "98000", "prosentandelAvGjeldInnskuddOgRente": "50", "andelAvGjeld": "1700000.0", "andelAvPaaloepteRenter": "49000"}, {"id": "s1", "bankensNavn": "Statens lånekasse for utdanning", "organisasjonsnummer": "960885406", "gjeld": "160000", "paaloepteRenter": "8000"}], "verdipapirfond": [{"isinnummer": "NO0010582984", "antallAndeler": "900", "verdiFoerVerdsettingsrabattForAndelIAksjedel": "270000", "verdiFoerVerdsettingsrabattForAndelIRentedel": "0", "skattepliktigGevinstVedRealisasjonAvAndelIAksjedel": "0"}], "aksjesparekonto": [{"verdiFoerVerdsettingsrabattForAksjedel": "72000", "finansprodukt": [{"isinnummer": "US0378331005", "antall": "40"}]}], "aksjeIAksjonaerregisteret": [{"isinnummer": "NO0003054108", "antallAksjer": "300", "verdiFoerVerdsettingsrabattForAksje": "66000", "skattepliktigUtbytte": "3500"}], "virtuellEiendel": [{"navn": "Bitcoin", "antall": "0.05", "formuesverdiforVirtuellEiendel": "30000"}], "minstefradragOgKostnaderKnyttetTilArbeidOgAnnenInntekt": [{"minstefradragIInntekt": "92000"}], "pensjonspremieIArbeidsforhold": [{"fradragForPensjonspremieTilPensjonsordningIArbeidsforholdFradragsberettigetBeloep": "12000"}], "fastEiendom": [{"fastEiendomSomFormuesobjekt": [{"formuesverdiForFormuesandel": "1450000"}]}], "kjoeretoey": [{"formuesverdiForFormuesandelForKjoeretoey": "180000"}]}}, {"visningsdata": {"inntektsaar": "2025", "arbeidsgiver": [{"samledeYtelserFraArbeidsgiverPerBehandlingsart": [{"behandlingsart": "LONN", "beloep": {"beloep": "865000"}}, {"behandlingsart": "FRI", "beloep": "6000"}, {"behandlingsart": "UTGGJ", "beloep": "3000"}]}], "konto": [{"id": "k1", "bankensNavn": "DNB", "innskudd": "265000", "opptjenteRenter": "4200,50"}, {"id": "b2", "bankensNavn": "SPAREBANK 1 BOLIGKREDITT", "gjeld": "3280000", "paaloepteRenter": "98000", "prosentandelAvGjeldInnskuddOgRente": "50", "andelAvGjeld": "1640000.0", "andelAvPaaloepteRenter": "49000"}, {"id": "s1", "bankensNavn": "Statens lånekasse for utdanning", "organisasjonsnummer": "960885406", "gjeld": "142000", "paaloepteRenter": "8000"}, {"id": "c1", "bankensNavn": "Bank Norwegian", "gjeld": "18000", "paaloepteRenter": "2600"}], "verdipapirfond": [{"isinnummer": "NO0010582984", "antallAndeler": "1150", "verdiFoerVerdsettingsrabattForAndelIAksjedel": "380000", "verdiFoerVerdsettingsrabattForAndelIRentedel": "0", "skattepliktigGevinstVedRealisasjonAvAndelIAksjedel": "0"}], "aksjesparekonto": [{"verdiFoerVerdsettingsrabattForAksjedel": "118000", "finansprodukt": [{"isinnummer": "US0378331005", "antall": "55"}]}], "aksjeIAksjonaerregisteret": [{"isinnummer": "NO0003054108", "antallAksjer": "300", "verdiFoerVerdsettingsrabattForAksje": "72000", "skattepliktigUtbytte": "3500"}], "virtuellEiendel": [{"navn": "Bitcoin", "antall": "0.05", "formuesverdiforVirtuellEiendel": "48000"}], "minstefradragOgKostnaderKnyttetTilArbeidOgAnnenInntekt": [{"minstefradragIInntekt": "92000"}], "pensjonspremieIArbeidsforhold": [{"fradragForPensjonspremieTilPensjonsordningIArbeidsforholdFradragsberettigetBeloep": "12000"}], "fastEiendom": [{"fastEiendomSomFormuesobjekt": [{"formuesverdiForFormuesandel": "1450000"}]}], "kjoeretoey": [{"formuesverdiForFormuesandelForKjoeretoey": "180000"}]}}];
+
+const state = { filer: [], egnedata: null, belop: false, eksempel: true };
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function fmt(x, belop, fortegn = true) {
+  const s = belop ? kr(Math.abs(x)) + " kr" : Math.abs(x).toFixed(1).replace(".", ",") + " %";
+  if (!fortegn) return s;
+  return (x > 0.0005 ? "+" : x < -0.0005 ? "−" : "") + s;
+}
+
+async function lesFil(file) {
+  return await file.text();
+}
+
+$("filer").addEventListener("change", async (e) => {
+  const nye = [...e.target.files];
+  e.target.value = "";
+  for (const f of nye) {
+    try {
+      const d = les(await lesFil(f), f.name);
+      state.filer = state.filer.filter((x) => x.aar !== d.aar);
+      state.filer.push({ navn: f.name, aar: d.aar, v: d.v });
+    } catch (err) {
+      vis({ feil: err instanceof Feil ? err.message : `Kunne ikke lese ${f.name}.` });
+      return;
+    }
+  }
+  state.filer.sort((a, b) => b.aar - a.aar);
+  if (state.filer.length > 2) state.filer = state.filer.slice(0, 2);
+  state.eksempel = false;
+  oppdater();
+});
+$("nullstill").addEventListener("click", () => { state.filer = []; state.egnedata = null; state.eksempel = true; oppdater(); });
+$("egnedata").addEventListener("change", async (e) => {
+  const f = e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  try { state.egnedata = { navn: f.name, ...innskuddFraEgnedata(await lesFil(f), f.name) }; }
+  catch (err) { state.egnedata = null; $("otpinfo").textContent = err instanceof Feil ? err.message : `Kunne ikke lese ${f.name}.`; return; }
+  oppdater();
+});
+$("otp").addEventListener("input", () => { state.egnedata = null; oppdater(); });
+$("kurs").addEventListener("change", oppdater);
+$("v-pst").addEventListener("click", () => { state.belop = false; oppdater(); });
+$("v-kr").addEventListener("click", () => { state.belop = true; oppdater(); });
+window.addEventListener("resize", () => { clearTimeout(window.__rt); window.__rt = setTimeout(oppdater, 150); });
+
+function otpSats(lonn) {
+  if (state.egnedata && lonn > 0) {
+    const s = state.egnedata.innskudd / lonn;
+    $("otpinfo").textContent = `Avtalt årlig innskudd fra ${state.egnedata.navn}: ${kr(state.egnedata.innskudd)} kr = ${(s * 100).toFixed(1).replace(".", ",")} % av lønn`
+      + (state.egnedata.antall > 1 ? ` (summen av ${state.egnedata.antall} avtaler).` : ".");
+    return { sats: s, kilde: "egnedata" };
+  }
+  const raw = $("otp").value.replace(",", ".").trim();
+  const n = raw === "" ? 2 : Number(raw);
+  if (!Number.isFinite(n) || n < 0 || n > 30) { $("otpinfo").textContent = "Skriv satsen som et tall, for eksempel 2 eller 5,6."; return { sats: 0.02, kilde: "antatt" }; }
+  $("otpinfo").textContent = "Minstekravet er 2 %, snittet rundt 4 %.";
+  return { sats: n / 100, kilde: "antatt" };
+}
+
+function oppdater() {
+  $("v-pst").setAttribute("aria-pressed", String(!state.belop));
+  $("v-kr").setAttribute("aria-pressed", String(state.belop));
+  $("visinfo").textContent = state.belop ? "Kroner viser lønn, skatt og sparing. Grafen er da ikke anonym." : "Prosent er anonymt og egnet for deling.";
+  $("nullstill").hidden = state.filer.length === 0;
+  $("chips").innerHTML = state.filer.map((f) => `<span class="chip"><b>${f.aar}</b>${esc(f.navn)}</span>`).join("");
+
+  let A, B;
+  if (state.eksempel || state.filer.length === 0) {
+    A = les(JSON.stringify(EKSEMPEL[0]), "eksempel"); B = les(JSON.stringify(EKSEMPEL[1]), "eksempel");
+  } else if (state.filer.length === 1) {
+    $("chips").insertAdjacentHTML("beforeend", `<span class="chip">Mangler ${state.filer[0].aar - 1} eller ${state.filer[0].aar + 1}</span>`);
+    return vis({ feil: `Du har valgt skattemeldingen for ${state.filer[0].aar}. Velg også året før.` });
+  } else { [A, B] = state.filer; }
+
+  const ny = A.aar > B.aar ? A : B;
+  const { sats, kilde } = otpSats(lonnFra(ny.v));
+  try {
+    const r = beregn(A, B, { kurs: $("kurs").value, otp_sats: sats, otp_kilde: kilde });
+    vis({ r, eksempel: state.eksempel || state.filer.length === 0 });
+  } catch (err) {
+    vis({ feil: err instanceof Feil ? err.message : "Noe gikk galt under beregningen. Sjekk at filene er skattemeldinger fra Skatteetaten." });
+  }
+}
+
+function vis({ r, feil, eksempel }) {
+  const msgs = [];
+  if (feil) msgs.push(`<div class="msg feil"><strong>Kan ikke beregne.</strong> ${esc(feil)}</div>`);
+  if (eksempel) msgs.push(`<div class="msg eksempel"><strong>Eksempel med fiktive tall.</strong> Velg dine egne skattemeldinger over for å se ditt fossefall.</div>`);
+  if (r) for (const v of r.varsler) msgs.push(`<div class="msg ${v.niva}"><strong>${v.niva === "merk" ? "Merk:" : "Advarsel:"}</strong> ${esc(v.tekst)}</div>`);
+  $("msgs").innerHTML = msgs.join("");
+  const res = ["headline", "sub", "wf", "tabell", "note", "laan", "laanmerk"];
+  if (!r) { res.forEach((id) => ($(id).innerHTML = "")); return; }
+
+  const b = state.belop, k = b ? r.lonn / 100 : 1;
+  const s = (x) => x * k;
+  const andelTxt = b ? ` <span style="font-weight:600">(${fmt(r.total, false, r.total < 0)} av bruttolønnen)</span>` : " av bruttolønnen";
+  $("headline").innerHTML = r.total >= 0
+    ? `Du sparte <span class="n">${esc(fmt(s(r.total), b, false))}</span>${andelTxt}, ${esc(fmt(s(r.netto), b, r.netto < 0))} av det på egen hånd.`
+    : `Sparingen ble negativ: <span style="color:var(--ned)">${esc(fmt(s(r.total), b))}</span>${andelTxt}.`;
+  $("sub").textContent = b ? `Én person, inntektsåret ${r.aar}. Alle tall i kroner per år.`
+    : `Anonymisert: én person, inntektsåret ${r.aar}. Alle tall i prosent av bruttolønn.`;
+
+  const H = 100, nivaa = H + r.annen + r.skatt + r.renter;
+  const rows = [
+    ["Bruttolønn", "", 0, H, "sum"],
+    ["Annen inntekt", "", H, r.annen, "opp"],
+    ["Skatt", "estimert", H + r.annen, r.skatt, "ned"],
+    ["Renter", "", H + r.annen + r.skatt, r.renter, "ned"],
+    ["Forbruk", "restpost", nivaa, r.forbruk, r.forbruk <= 0 ? "ned" : "opp"],
+    ["Finansiell sparing", "fond, bank, gjeld", 0, r.finansiell, "spar", "first"],
+    ["Sparing i bolig", "nedbetalt boliglån", r.finansiell, r.bolig, "spar"],
+  ];
+  if (Math.abs(r.premie) > 0.05) rows.push(["Egen pensjonspremie", "", r.finansiell + r.bolig, r.premie, "pensjon"]);
+  rows.push(["Folketrygd", "opptjening", r.netto, r.folketrygd, "pensjon"],
+    ["Tjenestepensjon", r.otp_kilde === "egnedata" ? "avtalt" : "antatt", r.netto + r.folketrygd, r.otp, "pensjon"],
+    ["Total sparing", "", 0, r.total, "sum"]);
+  const color = { sum: "var(--sum)", opp: "var(--opp)", ned: "var(--ned)", spar: "var(--spar)", pensjon: "var(--pensjon)" };
+  let lo = 0, hi = 0;
+  for (const [, , base, h] of rows) { lo = Math.min(lo, base, base + h); hi = Math.max(hi, base, base + h); }
+  const pad = (hi - lo) * 0.02; lo -= lo < 0 ? pad : 0; hi += pad;
+  const X = (v) => ((v - lo) / (hi - lo)) * 100;
+  const step = niceStep(hi - lo, window.innerWidth < 560 ? 3 : 5);
+  let ticks = "";
+  for (let t = Math.ceil(lo / step) * step; t <= hi + 1e-9; t += step) {
+    ticks += `<span class="t" style="left:${X(t)}%">${b ? kortKr(t * k) : Math.round(t) + " %"}</span>`;
+  }
+  let html = `<div class="wf-axis"><span></span><div style="position:relative;margin-right:8px">${ticks}</div></div>`;
+  for (const [navn, under, base, h, typ, first] of rows) {
+    const y0 = Math.min(base, base + h), x0 = X(y0), w = X(y0 + Math.abs(h)) - x0;
+    const text = fmt(s(h), b, typ !== "sum");
+    const inni = w > (b ? 30 : 17);
+    let pos;
+    if (inni) pos = `left:${x0}%;width:${w}%;justify-content:center`;
+    else if (x0 + w < 72) pos = `left:${x0 + w}%`;
+    else pos = `right:${100 - x0}%`;
+    const saving = rows.indexOf(rows.find((x) => x[5] === "first")) <= rows.findIndex((x) => x[0] === navn);
+    html += `<div class="wf-row${saving ? " saving" : ""}${first ? " first-saving" : ""}">
+      <div class="wf-name">${navn}${under ? `<small>${under}</small>` : ""}</div>
+      <div class="wf-track"><span class="wf-zero" style="left:${X(0)}%"></span>
+        <span class="wf-bar" style="left:${x0}%;width:${w}%;background:${color[typ]}"></span>
+        <span class="wf-val${inni ? " in" : ""}" style="${pos}">${text}</span></div></div>`;
+  }
+  $("wf").innerHTML = html;
+
+  const linjer = [["Bruttolønn", 100], ["Annen inntekt", r.annen], ["Skatt (estimert)", r.skatt], ["Renter", r.renter],
+    ["Forbruk (restpost)", r.forbruk], ["Finansiell sparing", r.finansiell], ["  fond og aksjer (nettokjøp)", r.detaljer.fond, "sub"],
+    ["  bankinnskudd", r.detaljer.bank, "sub"], ["  annen gjeld nedbetalt", r.detaljer.annen_gjeld, "sub"],
+    ["  nye lån / økt kreditt", r.detaljer.nye_laan, "sub"], ["Sparing i bolig", r.bolig], ["Egen pensjonspremie", r.premie],
+    ["Egen sparing", r.netto, "tot"], ["Folketrygd (opptjening)", r.folketrygd],
+    [r.otp_kilde === "egnedata" ? "Tjenestepensjon (avtalt)" : "Tjenestepensjon (antatt)", r.otp], ["Total sparing", r.total, "tot"]];
+  $("tabell").innerHTML = linjer.map(([n, v, cls]) => `<tr class="${cls || ""}"><td>${esc(n.trim())}</td>`
+    + (b ? `<td class="num">${fmt(v * r.lonn / 100, true, n !== "Bruttolønn")}</td>` : "")
+    + `<td class="num">${fmt(v, false, n !== "Bruttolønn")}</td></tr>`).join("");
+
+  visLaan(r, b);
+
+  const kursord = { snitt: "snittet av start- og sluttkurs", start: "kursen ved årets start", slutt: "kursen ved årets slutt" }[r.kurs];
+  $("note").textContent = `Skatt er estimert, ikke Skatteetatens beregning. Sparing i bolig er nedbetalt boliglån; boligens verdiøkning og kursgevinster er ikke sparing. Fondskjøp er verdsatt til ${kursord}. `
+    + `Folketrygd: 18,1 % av pensjonsgivende inntekt opp til ${kr(r.ft_tak)} kr (7,1 × gjennomsnittlig G ${kr(r.G_snitt)} kr for ${r.aar}). `
+    + `Tjenestepensjon: ${r.otp_kilde === "egnedata" ? "avtalt årlig innskudd fra EgneData" : "antatt"}, ${(r.otp_sats * 100).toFixed(1).replace(".", ",")} % av lønn, betalt av arbeidsgiver i tillegg til lønn.`;
+}
+
+function visLaan(r, b) {
+  const L = r.laan || [];
+  $("laanblokk").hidden = L.length === 0;
+  const pst = (x) => (x * 100).toFixed(2).replace(".", ",") + " %";
+  const aarTxt = (n) => n.toFixed(1).replace(".", ",");
+  const statusTxt = {
+    nedbetalt: `Nedbetalt i ${r.aar}`,
+    ny: "Nytt lån i år. Trenger ett år til for å beregne",
+    okt: "Lånet har økt i år, så år igjen kan ikke beregnes",
+    aldri: "Betalingen dekker ikke rentene; lånet blir ikke nedbetalt i dette tempoet",
+  };
+  let h = `<tr><th>Lån</th><th class="num">Rente</th><th class="num">År igjen</th><th class="num">Ferdig ca.</th>`
+    + (b ? `<th class="num">Saldo</th><th class="num">Betalt i år</th>` : "") + `</tr>`;
+  for (const l of L) {
+    const ok = l.status === "ok";
+    h += `<tr><td>${l.navn}${l.refinansiert ? " *" : ""}</td>`
+      + `<td class="num">${l.rente !== null ? pst(l.rente) : "–"}</td>`
+      + (ok ? `<td class="num">${aarTxt(l.aar_igjen)}</td><td class="num">${l.ferdig}</td>`
+            : `<td class="st" colspan="2">${statusTxt[l.status]}</td>`)
+      + (b ? `<td class="num">${kr(l.B)} kr</td><td class="num">${l.A !== null ? kr(l.A) + " kr" : "–"}</td>` : "") + `</tr>`;
+  }
+  $("laan").innerHTML = h;
+  const merk = [];
+  if (L.some((l) => l.refinansiert)) merk.push(`<div class="msg merk"><strong>* Flyttet mellom banker i ${r.aar}.</strong> Et nytt lån har ofte ny løpetid, gjerne 25–30 år. Nedbetalingen i år sier da lite om tempoet videre, så år igjen kan være for lavt. Neste års skattemelding eller låneavtalen gir svaret.</div>`);
+  merk.push(`<p class="foot">Regnet som annuitetslån med årets rente og årets betaling. Renteendringer fremover er ikke med. Tar du opp et nytt lån av samme type i løpet av året, blir renten for høy og år igjen usikkert.</p>`);
+  $("laanmerk").innerHTML = merk.join("");
+}
+
+function niceStep(span, n) {
+  const raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  for (const m of [1, 2, 2.5, 5, 10]) if (raw <= m * mag) return m * mag;
+  return 10 * mag;
+}
+function kortKr(x) {
+  const a = Math.abs(x), sign = x < 0 ? "−" : "";
+  if (a >= 1e6) return sign + (a / 1e6).toFixed(a >= 1e7 ? 0 : 1).replace(".", ",") + " mill";
+  if (a >= 1e3) return sign + Math.round(a / 1e3) + "k";
+  return sign + Math.round(a);
+}
+
+oppdater();
+</script>
