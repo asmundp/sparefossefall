@@ -7,7 +7,7 @@
 /* Layout: one narrow working column — inputs on top, then the waterfall as horizontal rows that work at phone width. */
 :root {
   --bg: #F4F5F2; --surface: #FFFFFF; --ink: #23272E; --muted: #5B6573; --line: #DFE1DB; --tint: #ECEAE4;
-  --sum: #2B2F36; --ned: #D9573F; --spar: #2E8B57; --pensjon: #5B8DB8; --opp: #8FBF9F;
+  --sum: #2B2F36; --ned: #D9573F; --spar: #2E8B57; --pensjon: #5B8DB8; --opp: #8FBF9F; --verdi: #B98420;
   --warn-bg: #FBEAE5; --warn-ink: #9A2F1B; --note-bg: #E8EFF6; --note-ink: #2C4F70;
   --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
   --body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -15,11 +15,11 @@
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #16191D; --surface: #1F2328; --ink: #E7E9EC; --muted: #9AA4B1; --line: #333941; --tint: #262B31;
-  --sum: #C9CED6; --ned: #E8705A; --spar: #4CB37A; --pensjon: #7DA8D0; --opp: #86B896;
+  --sum: #C9CED6; --ned: #E8705A; --spar: #4CB37A; --pensjon: #7DA8D0; --opp: #86B896; --verdi: #D9AE4E;
   --warn-bg: #3A221D; --warn-ink: #F4B3A5; --note-bg: #1E2C3A; --note-ink: #B5CCE3; color-scheme: dark } }
 :root[data-theme="dark"] {
   --bg: #16191D; --surface: #1F2328; --ink: #E7E9EC; --muted: #9AA4B1; --line: #333941; --tint: #262B31;
-  --sum: #C9CED6; --ned: #E8705A; --spar: #4CB37A; --pensjon: #7DA8D0; --opp: #86B896;
+  --sum: #C9CED6; --ned: #E8705A; --spar: #4CB37A; --pensjon: #7DA8D0; --opp: #86B896; --verdi: #D9AE4E;
   --warn-bg: #3A221D; --warn-ink: #F4B3A5; --note-bg: #1E2C3A; --note-ink: #B5CCE3; color-scheme: dark }
 
 * { box-sizing: border-box }
@@ -177,6 +177,7 @@ details ul { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size
       <span><i style="background:var(--spar)"></i>Egen sparing</span>
       <span><i style="background:var(--pensjon)"></i>Pensjonssparing</span>
       <span><i style="background:var(--opp)"></i>Annen inntekt</span>
+      <span><i style="background:var(--verdi)"></i>Verdiendring (ikke sparing)</span>
     </div>
     <div class="tablewrap"><table id="tabell"></table></div>
     <div class="step" id="laanblokk">
@@ -197,6 +198,7 @@ details ul { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size
         <li>Lån flyttet mellom banker (refinansiering) pares mot hverandre etter størrelse innen samme lånetype.</li>
         <li>Lånetype: Lånekassen er studielån. Boligkreditt, felles lån eller lån over 500 000 kr regnes som boliglån. Resten er annen gjeld.</li>
         <li>Forbruk = lønn + annen kontantinntekt − skatt − renter − egen sparing. Det er en restpost.</li>
+        <li>Verdiendring = kursendring på fond og aksjer (endring i verdi − nettokjøp) + prisendring på bolig. Den er ikke sparing og påvirker ikke forbruk. Formuesvekst = total sparing + verdiendring. Bolig du eier hele året verdsettes med Skatteetatens markedsverdi. Ved kjøp eller salg brukes faktisk pris som markedsverdi når den er oppgitt (± et halvt års prisvekst), ellers Skatteetatens markedsverdi.</li>
         <li>Skatt er et eget estimat: trygdeavgift, trinnskatt, 22 % på alminnelig inntekt og grov formuesskatt. Ikke med: skattefradrag for pensjonister, fagforeningskontingent, BSU, næringsinntekt, utenlandsk skatt.</li>
         <li>Folketrygd: 18,1 % av pensjonsgivende inntekt opp til 7,1 G, der G er gjennomsnittlig grunnbeløp for inntektsåret.</li>
         <li>Sparing i bolig er nedbetalt boliglån. Kjøper eller selger du bolig, regnes bytte midt i året: kjøpt bolig − solgt bolig − økning i boliglån. Skriv inn faktisk kjøpesum og salgssum (hele boligen, uten fellesgjeld og omkostninger); de ganges med eierandelen. Uten oppgitt pris anslås den fra Skatteetatens markedsverdi, justert for et halvt års prisvekst. Omkostninger som dokumentavgift og megler regnes som forbruk. Prisendring på bolig du eier hele året er ikke sparing.</li>
@@ -448,6 +450,31 @@ function boliger(v) {
   return new Map([...ut].map(([k, [verdi, hel]]) => [k, [verdi, verdi / hel]]));
 }
 
+// Verdivektet eierandel (0–1) for [nøkkel, [verdi, andel]]-par.
+function eierandel(xs) {
+  const verdi = sum(xs, ([, [x]]) => x), hel = sum(xs, ([, [x, a]]) => x / a);
+  return hel ? verdi / hel : 1;
+}
+
+// Prisendring på bolig i løpet av året, egen andel (ikke sparing). Samme regler som boligverdiendring() i Python.
+function boligverdiendring(e0, e1, prisvekst, kjopspris = null, salgspris = null) {
+  const halv = Math.pow(1 + prisvekst, 0.5);
+  let holdt = 0;
+  for (const [k, [x]] of e1) if (e0.has(k)) holdt += x - e0.get(k)[0];
+  const kjopt = [...e1].filter(([k]) => !e0.has(k));
+  const solgt = [...e0].filter(([k]) => !e1.has(k));
+  let kE = 0, sE = 0;
+  if (kjopt.length) {
+    if (kjopspris) { const kjop = kjopspris * eierandel(kjopt); kE = kjop * halv - kjop; }
+    else { const slutt = sum(kjopt, ([, [x]]) => x); kE = slutt - slutt / halv; }
+  }
+  if (solgt.length) {
+    if (salgspris) { const salg = salgspris * eierandel(solgt); sE = salg - salg / halv; }
+    else { const start = sum(solgt, ([, [x]]) => x); sE = start * halv - start; }
+  }
+  return holdt + kE + sE;
+}
+
 // Uten kjøp/salg: nedbetalt boliglån. Med kjøp/salg (antatt midt i året): kjøpspris − salgspris − økning i boliglån.
 // Faktisk kjøpesum/salgssum (hele boligen) × eierandel brukes når oppgitt; ellers Skatteetatens markedsverdi ± et halvt års prisvekst.
 function boligendring(e0, e1, g0, g1, prisvekst, kjopspris = null, salgspris = null) {
@@ -455,10 +482,7 @@ function boligendring(e0, e1, g0, g1, prisvekst, kjopspris = null, salgspris = n
   const solgt = [...e0].filter(([k]) => !e1.has(k));
   if (!kjopt.length && !solgt.length) return null;
   const halv = Math.pow(1 + prisvekst, 0.5);
-  const andel = (xs) => {
-    const verdi = sum(xs, ([, [x]]) => x), hel = sum(xs, ([, [x, a]]) => x / a);
-    return hel ? verdi / hel : 1;
-  };
+  const andel = eierandel;
   let kjop, kjop_kilde, salg, salg_kilde;
   if (kjopt.length && kjopspris) { kjop = kjopspris * andel(kjopt); kjop_kilde = "faktisk"; }
   else { kjop = sum(kjopt, ([, [x]]) => x) / halv; kjop_kilde = "anslått"; }
@@ -558,6 +582,10 @@ function beregn(filA, filB, { kurs = "snitt", otp_sats = 0.02, otp_kilde = "anta
   } else bolig = gj.bolig;
   const finansiell = fond + bank + gj.annen + gj.nye;
   const nettosparing = finansiell + bolig + ink.premie;
+  // Verdiendring (ikke sparing, påvirker ikke forbruk): kursendring på verdipapirer og prisendring på bolig
+  const papirverdi = (b) => sum([...b.papirer.values()], ([, vv]) => vv);
+  const kursendring = papirverdi(b1) - papirverdi(b0) - fond;
+  const boligverdi = boligverdiendring(boliger(gml.v), boliger(ny.v), boligprisvekst, kjopspris, salgspris);
   const renter = b1.renter_betalt;
   const forbruk = ink.lonn + ink.annen_inntekt - ink.skatt - renter - nettosparing;
 
@@ -577,7 +605,9 @@ function beregn(filA, filB, { kurs = "snitt", otp_sats = 0.02, otp_kilde = "anta
     annen: pst(ink.annen_inntekt), skatt: -pst(ink.skatt), renter: -pst(renter), forbruk: -pst(forbruk),
     finansiell: pst(finansiell), bolig: pst(bolig), premie: pst(ink.premie), netto: pst(nettosparing),
     folketrygd: pst(folketrygd), otp: pst(otp), total: pst(nettosparing + folketrygd + otp),
-    detaljer: { fond: pst(fond), bank: pst(bank), annen_gjeld: pst(gj.annen), nye_laan: pst(gj.nye) },
+    verdiendring: pst(kursendring + boligverdi), formuesvekst: pst(nettosparing + folketrygd + otp + kursendring + boligverdi),
+    detaljer: { fond: pst(fond), bank: pst(bank), annen_gjeld: pst(gj.annen), nye_laan: pst(gj.nye),
+      kursendring: pst(kursendring), boligverdi: pst(boligverdi) },
     pensjonist: ink.pensjon_mottatt > 0, laan: laananalyse(b0, b1, Boolean(bytte)),
     boligbytte: bytte ? { kjop: pst(bytte.kjop), salg: -pst(bytte.salg), gjeld: -pst(bytte.gjeldsokning),
       kjopt: bytte.antall_kjopt, solgt: bytte.antall_solgt, prisvekst: boligprisvekst,
@@ -754,8 +784,10 @@ function vis({ r, feil, eksempel }) {
   if (Math.abs(r.premie) > 0.05) rows.push(["Egen pensjonspremie", "", r.finansiell + r.bolig, r.premie, "pensjon"]);
   rows.push(["Folketrygd", "opptjening", r.netto, r.folketrygd, "pensjon"],
     ["Tjenestepensjon", r.otp_kilde === "egnedata" ? "avtalt" : "antatt", r.netto + r.folketrygd, r.otp, "pensjon"],
-    ["Total sparing", "", 0, r.total, "sum"]);
-  const color = { sum: "var(--sum)", opp: "var(--opp)", ned: "var(--ned)", spar: "var(--spar)", pensjon: "var(--pensjon)" };
+    ["Total sparing", "", 0, r.total, "sum"],
+    ["Verdiendring", "ikke sparing", r.total, r.verdiendring, "verdi"],
+    ["Formuesvekst", "sparing + verdiendring", 0, r.formuesvekst, "sum"]);
+  const color = { sum: "var(--sum)", opp: "var(--opp)", ned: "var(--ned)", spar: "var(--spar)", pensjon: "var(--pensjon)", verdi: "var(--verdi)" };
   let lo = 0, hi = 0;
   for (const [, , base, h] of rows) { lo = Math.min(lo, base, base + h); hi = Math.max(hi, base, base + h); }
   const pad = (hi - lo) * 0.02; lo -= lo < 0 ? pad : 0; hi += pad;
@@ -791,7 +823,9 @@ function vis({ r, feil, eksempel }) {
       [`  solgt bolig (${prisord(r.boligbytte.salg_kilde, "salgssum")})`, r.boligbytte.salg, "sub"], ["  økning i boliglån", r.boligbytte.gjeld, "sub"]] : []),
     ["Egen pensjonspremie", r.premie],
     ["Egen sparing", r.netto, "tot"], ["Folketrygd (opptjening)", r.folketrygd],
-    [r.otp_kilde === "egnedata" ? "Tjenestepensjon (avtalt)" : "Tjenestepensjon (antatt)", r.otp], ["Total sparing", r.total, "tot"]];
+    [r.otp_kilde === "egnedata" ? "Tjenestepensjon (avtalt)" : "Tjenestepensjon (antatt)", r.otp], ["Total sparing", r.total, "tot"],
+    ["Verdiendring (ikke sparing)", r.verdiendring], ["  kursendring fond og aksjer", r.detaljer.kursendring, "sub"],
+    ["  prisendring bolig", r.detaljer.boligverdi, "sub"], ["Formuesvekst", r.formuesvekst, "tot"]];
   $("tabell").innerHTML = linjer.map(([n, v, cls]) => `<tr class="${cls || ""}"><td>${esc(n.trim())}</td>`
     + (b ? `<td class="num">${fmt(v * r.lonn / 100, true, n !== "Bruttolønn")}</td>` : "")
     + `<td class="num">${fmt(v, false, n !== "Bruttolønn")}</td></tr>`).join("");
@@ -801,7 +835,8 @@ function vis({ r, feil, eksempel }) {
   const kursord = { snitt: "snittet av start- og sluttkurs", start: "kursen ved årets start", slutt: "kursen ved årets slutt" }[r.kurs];
   $("note").textContent = `Skatt er estimert, ikke Skatteetatens beregning. ${r.boligbytte ? `Sparing i bolig er kjøpt bolig minus solgt bolig minus økning i boliglån, med bytte antatt midt i året. Faktisk pris ganges med eierandelen; uten oppgitt pris anslås den fra Skatteetatens markedsverdi og ${(r.boligbytte.prisvekst * 100).toFixed(1).replace(".", ",")} % årlig prisvekst. Omkostninger som dokumentavgift og megler regnes som forbruk.` : "Sparing i bolig er nedbetalt boliglån."} Prisendring på bolig du eier hele året og kursgevinster er ikke sparing. Fondskjøp er verdsatt til ${kursord}. `
     + `Folketrygd: 18,1 % av pensjonsgivende inntekt opp til ${kr(r.ft_tak)} kr (7,1 × gjennomsnittlig G ${kr(r.G_snitt)} kr for ${r.aar}). `
-    + `Tjenestepensjon: ${r.otp_kilde === "egnedata" ? "avtalt årlig innskudd fra EgneData" : "antatt"}, ${(r.otp_sats * 100).toFixed(1).replace(".", ",")} % av lønn, betalt av arbeidsgiver i tillegg til lønn.`;
+    + `Tjenestepensjon: ${r.otp_kilde === "egnedata" ? "avtalt årlig innskudd fra EgneData" : "antatt"}, ${(r.otp_sats * 100).toFixed(1).replace(".", ",")} % av lønn, betalt av arbeidsgiver i tillegg til lønn. `
+    + `Verdiendring er kursendring på fond og aksjer og prisendring på bolig; den er ikke sparing og påvirker ikke forbruk.`;
 }
 
 function prisord(kilde, ord) {
