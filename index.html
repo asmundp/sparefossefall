@@ -8,7 +8,7 @@
 :root {
   --bg: #F4F5F2; --surface: #FFFFFF; --ink: #23272E; --muted: #5B6573; --line: #DFE1DB; --tint: #ECEAE4;
   --sum: #2B2F36; --ned: #D9573F; --spar: #2E8B57; --pensjon: #5B8DB8; --opp: #8FBF9F; --verdi: #B98420;
-  --warn-bg: #FBEAE5; --warn-ink: #9A2F1B; --note-bg: #E8EFF6; --note-ink: #2C4F70;
+  --onbar: #FFFFFF; --warn-bg: #FBEAE5; --warn-ink: #9A2F1B; --note-bg: #E8EFF6; --note-ink: #2C4F70;
   --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
   --body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
@@ -16,17 +16,20 @@
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #16191D; --surface: #1F2328; --ink: #E7E9EC; --muted: #9AA4B1; --line: #333941; --tint: #262B31;
   --sum: #C9CED6; --ned: #E8705A; --spar: #4CB37A; --pensjon: #7DA8D0; --opp: #86B896; --verdi: #D9AE4E;
-  --warn-bg: #3A221D; --warn-ink: #F4B3A5; --note-bg: #1E2C3A; --note-ink: #B5CCE3; color-scheme: dark } }
+  --onbar: #15181C; --warn-bg: #3A221D; --warn-ink: #F4B3A5; --note-bg: #1E2C3A; --note-ink: #B5CCE3; color-scheme: dark } }
 :root[data-theme="dark"] {
   --bg: #16191D; --surface: #1F2328; --ink: #E7E9EC; --muted: #9AA4B1; --line: #333941; --tint: #262B31;
   --sum: #C9CED6; --ned: #E8705A; --spar: #4CB37A; --pensjon: #7DA8D0; --opp: #86B896; --verdi: #D9AE4E;
-  --warn-bg: #3A221D; --warn-ink: #F4B3A5; --note-bg: #1E2C3A; --note-ink: #B5CCE3; color-scheme: dark }
+  --onbar: #15181C; --warn-bg: #3A221D; --warn-ink: #F4B3A5; --note-bg: #1E2C3A; --note-ink: #B5CCE3; color-scheme: dark }
 
 * { box-sizing: border-box }
 [hidden] { display: none !important }
 body { background: var(--bg); color: var(--ink); font: 400 15px/1.5 var(--body);
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 48px }
-main { max-width: 820px; margin: 0 auto; display: grid; gap: 20px }
+main { max-width: 1480px; margin: 0 auto; display: grid; gap: 20px }
+main > * { width: 100%; max-width: 820px; justify-self: center }
+main > #resultat { max-width: none }
+#resultat > :not(.wf):not(.stegbar) { max-width: 820px }
 h1 { font: 800 clamp(30px, 6vw, 44px)/1.05 var(--display); letter-spacing: -0.02em; margin: 0; text-wrap: balance }
 h2 { font: 600 19px/1.25 var(--display); margin: 0; text-wrap: balance }
 p { margin: 0 }
@@ -78,7 +81,7 @@ input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; poin
 .wf-track { position: relative; height: 40px; margin-right: 8px }
 .wf-bar { position: absolute; top: 7px; height: 26px; border-radius: 4px; min-width: 2px }
 .wf-val { position: absolute; top: 0; height: 40px; display: flex; align-items: center; font: 500 13px var(--mono); white-space: nowrap; padding: 0 6px }
-.wf-val.in { color: #fff }
+.wf-val.in { color: var(--onbar) }
 .wf-zero { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--muted); opacity: .5 }
 .wf-axis { display: grid; grid-template-columns: minmax(96px, 30%) 1fr; height: 22px; font: 500 11.5px var(--mono); color: var(--muted) }
 .wf-axis .t { position: absolute; transform: translateX(-50%); white-space: nowrap }
@@ -100,15 +103,40 @@ details ul { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size
 .foot { font-size: 13px; color: var(--muted); max-width: 70ch }
 #laan { min-width: 520px } #laan.wide { min-width: 820px } #laan td.st:last-child { min-width: 200px }
 @media (max-width: 480px) { td { padding: 7px 4px } td.num { font-size: 13px } .panel { padding: 14px } .wf-name { font-size: 13px } .wf-val { font-size: 12px } }
-/* Bygg fossefallet én stolpe av gangen. Sluttilstanden er den vanlige tilstanden (fill-mode backwards). */
+/* Steg for steg: stolper etter gjeldende steg er skjult, navnet dempet. Ny stolpe vokser fram. */
+.wf .skjult .wf-bar, .wf .skjult .wf-val, .wf .skjult .wfv-bar, .wf .skjult .wfv-val { visibility: hidden }
+.wf .skjult .wf-name, .wf .wfv-name.skjult { opacity: .35 }
+.wf.steg { cursor: pointer }
 @media (prefers-reduced-motion: no-preference) {
-  .wf.anim .wf-bar { animation: wf-vokse .45s cubic-bezier(.2,.7,.3,1) backwards; animation-delay: calc(var(--i) * 300ms) }
-  .wf.anim .wf-val { animation: wf-fram .25s ease-out backwards; animation-delay: calc(var(--i) * 300ms + 300ms) }
-  .wf.anim .wf-row { animation: wf-rad .3s ease-out backwards; animation-delay: calc(var(--i) * 300ms) }
+  .wf .ny .wf-bar { animation: wf-vokse-x .5s cubic-bezier(.2,.7,.3,1) backwards }
+  .wf .ny .wfv-bar { animation: wf-vokse-y .5s cubic-bezier(.2,.7,.3,1) backwards }
+  .wf .ny .wf-val, .wf .ny .wfv-val { animation: wf-fram .3s ease-out .4s backwards }
 }
-@keyframes wf-vokse { from { transform: scaleX(0) } }
+@keyframes wf-vokse-x { from { transform: scaleX(0) } }
+@keyframes wf-vokse-y { from { transform: scaleY(0) } }
 @keyframes wf-fram { from { opacity: 0 } }
-@keyframes wf-rad { from { opacity: .35 } }
+.stegbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center }
+.stegbar .teller { font: 500 13px var(--mono); color: var(--muted); margin-left: auto }
+.stegbar .nyinfo { flex-basis: 100%; font-size: 14.5px; min-height: 1.5em }
+.stegbar .nyinfo b { font-family: var(--mono); font-weight: 500 }
+
+/* Stående fossefall (brede skjermer) */
+.wfv { --h: clamp(320px, 56vh, 600px); display: grid; grid-template-columns: 64px 1fr; font-variant-numeric: tabular-nums }
+.wfv-akse { position: relative; height: var(--h); font: 500 11.5px var(--mono); color: var(--muted) }
+.wfv-akse .t { position: absolute; right: 8px; transform: translateY(50%); white-space: nowrap }
+.wfv-plot { position: relative; height: var(--h); display: grid; grid-template-columns: repeat(var(--n), 1fr) }
+.wfv-grid { position: absolute; left: 0; right: 0; height: 1px; background: var(--line) }
+.wfv-grid.null { background: var(--muted); opacity: .6 }
+.wfv-kol { position: relative; height: 100% }
+.wfv-kol.saving { background: var(--tint) }
+.wfv-kol.first-saving { border-top-left-radius: 8px }
+.wfv-kol.last { border-top-right-radius: 8px }
+.wfv-bar { position: absolute; left: 14%; right: 14%; border-radius: 3px; min-height: 2px }
+.wfv-val { position: absolute; left: -20%; right: -20%; text-align: center; font: 600 13px var(--mono); white-space: nowrap }
+.wfv-val.in { color: var(--onbar); transform: translateY(50%) }
+.wfv-names { grid-column: 2; display: grid; grid-template-columns: repeat(var(--n), 1fr); padding-top: 8px }
+.wfv-name { font-size: 13px; font-weight: 500; text-align: center; line-height: 1.2; padding: 0 3px; overflow-wrap: anywhere; hyphens: auto }
+.wfv-name small { display: block; font-size: 11.5px; color: var(--muted); font-weight: 400 }@keyframes wf-rad { from { opacity: .35 } }
 </style>
 
 <main lang="nb">
@@ -178,7 +206,13 @@ details ul { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size
       <p class="headline" id="headline"></p>
       <p class="sub" id="sub"></p>
     </div>
-    <div class="row"><button class="btn" type="button" id="spill">Vis oppbyggingen igjen</button></div>
+    <div class="stegbar" id="stegbar">
+      <button class="btn primary" type="button" id="neste">Neste</button>
+      <button class="btn" type="button" id="tilbake">Tilbake</button>
+      <button class="btn link" type="button" id="alle">Vis alle</button>
+      <span class="teller" id="teller"></span>
+      <p class="nyinfo" id="nyinfo" aria-live="polite"></p>
+    </div>
     <div class="wf" id="wf"></div>
     <div class="legend">
       <span><i style="background:var(--sum)"></i>Sum</span>
@@ -656,7 +690,7 @@ if (typeof module !== "undefined") module.exports = { les, beregn, innskuddFraEg
 
 const EKSEMPEL = [{"visningsdata": {"inntektsaar": "2024", "arbeidsgiver": [{"samledeYtelserFraArbeidsgiverPerBehandlingsart": [{"behandlingsart": "LONN", "beloep": {"beloep": "820000"}}, {"behandlingsart": "FRI", "beloep": "6000"}, {"behandlingsart": "UTGGJ", "beloep": "3000"}]}], "konto": [{"id": "k1", "bankensNavn": "DNB", "innskudd": "210000", "opptjenteRenter": "4200,50"}, {"id": "b1", "bankensNavn": "SPAREBANK 1 BOLIGKREDITT", "gjeld": "3400000", "paaloepteRenter": "98000", "prosentandelAvGjeldInnskuddOgRente": "50", "andelAvGjeld": "1700000.0", "andelAvPaaloepteRenter": "49000"}, {"id": "s1", "bankensNavn": "Statens lånekasse for utdanning", "organisasjonsnummer": "960885406", "gjeld": "160000", "paaloepteRenter": "8000"}], "verdipapirfond": [{"isinnummer": "NO0010582984", "antallAndeler": "900", "verdiFoerVerdsettingsrabattForAndelIAksjedel": "270000", "verdiFoerVerdsettingsrabattForAndelIRentedel": "0", "skattepliktigGevinstVedRealisasjonAvAndelIAksjedel": "0"}], "aksjesparekonto": [{"verdiFoerVerdsettingsrabattForAksjedel": "72000", "finansprodukt": [{"isinnummer": "US0378331005", "antall": "40"}]}], "aksjeIAksjonaerregisteret": [{"isinnummer": "NO0003054108", "antallAksjer": "300", "verdiFoerVerdsettingsrabattForAksje": "66000", "skattepliktigUtbytte": "3500"}], "virtuellEiendel": [{"navn": "Bitcoin", "antall": "0.05", "formuesverdiforVirtuellEiendel": "30000"}], "minstefradragOgKostnaderKnyttetTilArbeidOgAnnenInntekt": [{"minstefradragIInntekt": "92000"}], "pensjonspremieIArbeidsforhold": [{"fradragForPensjonspremieTilPensjonsordningIArbeidsforholdFradragsberettigetBeloep": "12000"}], "fastEiendom": [{"sergEiendomsidentifikator": "0301-1-2-0-0", "fastEiendomSomFormuesobjekt": [{"formuesverdiForFormuesandel": "1450000", "verdiFoerVerdsettingsrabattForFormuesandel": "5800000"}]}], "kjoeretoey": [{"formuesverdiForFormuesandelForKjoeretoey": "180000"}]}}, {"visningsdata": {"inntektsaar": "2025", "arbeidsgiver": [{"samledeYtelserFraArbeidsgiverPerBehandlingsart": [{"behandlingsart": "LONN", "beloep": {"beloep": "865000"}}, {"behandlingsart": "FRI", "beloep": "6000"}, {"behandlingsart": "UTGGJ", "beloep": "3000"}]}], "konto": [{"id": "k1", "bankensNavn": "DNB", "innskudd": "265000", "opptjenteRenter": "4200,50"}, {"id": "b2", "bankensNavn": "SPAREBANK 1 BOLIGKREDITT", "gjeld": "3280000", "paaloepteRenter": "98000", "prosentandelAvGjeldInnskuddOgRente": "50", "andelAvGjeld": "1640000.0", "andelAvPaaloepteRenter": "49000"}, {"id": "s1", "bankensNavn": "Statens lånekasse for utdanning", "organisasjonsnummer": "960885406", "gjeld": "142000", "paaloepteRenter": "8000"}, {"id": "c1", "bankensNavn": "Bank Norwegian", "gjeld": "18000", "paaloepteRenter": "2600"}], "verdipapirfond": [{"isinnummer": "NO0010582984", "antallAndeler": "1150", "verdiFoerVerdsettingsrabattForAndelIAksjedel": "380000", "verdiFoerVerdsettingsrabattForAndelIRentedel": "0", "skattepliktigGevinstVedRealisasjonAvAndelIAksjedel": "0"}], "aksjesparekonto": [{"verdiFoerVerdsettingsrabattForAksjedel": "118000", "finansprodukt": [{"isinnummer": "US0378331005", "antall": "55"}]}], "aksjeIAksjonaerregisteret": [{"isinnummer": "NO0003054108", "antallAksjer": "300", "verdiFoerVerdsettingsrabattForAksje": "72000", "skattepliktigUtbytte": "3500"}], "virtuellEiendel": [{"navn": "Bitcoin", "antall": "0.05", "formuesverdiforVirtuellEiendel": "48000"}], "minstefradragOgKostnaderKnyttetTilArbeidOgAnnenInntekt": [{"minstefradragIInntekt": "92000"}], "pensjonspremieIArbeidsforhold": [{"fradragForPensjonspremieTilPensjonsordningIArbeidsforholdFradragsberettigetBeloep": "12000"}], "fastEiendom": [{"sergEiendomsidentifikator": "0301-1-2-0-0", "fastEiendomSomFormuesobjekt": [{"formuesverdiForFormuesandel": "1500000", "verdiFoerVerdsettingsrabattForFormuesandel": "6000000"}]}], "kjoeretoey": [{"formuesverdiForFormuesandelForKjoeretoey": "180000"}]}}];
 
-const state = { filer: [], egnedata: null, belop: false, eksempel: true, animer: true };
+const state = { filer: [], egnedata: null, belop: false, eksempel: true, steg: null, nytt: false, antall: 0 };
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -686,10 +720,10 @@ $("filer").addEventListener("change", async (e) => {
   state.filer.sort((a, b) => b.aar - a.aar);
   if (state.filer.length > 2) state.filer = state.filer.slice(0, 2);
   state.eksempel = false;
-  state.animer = true;
+  state.steg = 0; state.nytt = true;     // nye filer: bygg fossefallet steg for steg
   oppdater();
 });
-$("nullstill").addEventListener("click", () => { state.animer = true; state.filer = []; state.egnedata = null; state.eksempel = true; $("kjopspris").value = ""; $("salgspris").value = ""; oppdater(); });
+$("nullstill").addEventListener("click", () => { state.steg = null; state.filer = []; state.egnedata = null; state.eksempel = true; $("kjopspris").value = ""; $("salgspris").value = ""; oppdater(); });
 $("egnedata").addEventListener("change", async (e) => {
   const f = e.target.files[0]; e.target.value = "";
   if (!f) return;
@@ -713,9 +747,25 @@ function lesBelop(tekst) {
   const n = mill ? Number(s.replace(",", ".")) * 1e6 : Number(s.replace(/[.,]/g, ""));
   return Number.isFinite(n) && n >= 100000 ? n : NaN;
 }
-$("v-pst").addEventListener("click", () => { state.belop = false; state.animer = true; oppdater(); });
-$("v-kr").addEventListener("click", () => { state.belop = true; state.animer = true; oppdater(); });
-$("spill").addEventListener("click", () => { state.animer = true; oppdater(); });
+$("v-pst").addEventListener("click", () => { state.belop = false; oppdater(); });
+$("v-kr").addEventListener("click", () => { state.belop = true; oppdater(); });
+
+// Steg for steg: Neste / Tilbake / Vis alle, klikk i grafen, piltaster og mellomrom
+function neste() {
+  if (state.steg === null || state.steg >= state.antall - 1) { state.steg = 0; }
+  else state.steg += 1;
+  state.nytt = true; oppdater();
+}
+function tilbake() { if (state.steg !== null && state.steg > 0) { state.steg -= 1; state.nytt = false; oppdater(); } }
+$("neste").addEventListener("click", neste);
+$("tilbake").addEventListener("click", tilbake);
+$("alle").addEventListener("click", () => { state.steg = null; state.nytt = false; oppdater(); });
+$("wf").addEventListener("click", () => { if (state.steg !== null) neste(); });
+document.addEventListener("keydown", (e) => {
+  if (state.steg === null || e.target.closest("input, select, textarea, button, summary")) return;
+  if (e.key === "ArrowRight" || e.key === " " || e.key === "Enter") { e.preventDefault(); neste(); }
+  else if (e.key === "ArrowLeft") { e.preventDefault(); tilbake(); }
+});
 window.addEventListener("resize", () => { clearTimeout(window.__rt); window.__rt = setTimeout(oppdater, 150); });
 
 function otpSats(lonn) {
@@ -806,41 +856,26 @@ function vis({ r, feil, eksempel }) {
     ["Verdiendring", "ikke sparing", r.total, r.verdiendring, "verdi"],
     ["Formuesvekst", "sparing + verdiendring", 0, r.formuesvekst, "sum"]);
   const color = { sum: "var(--sum)", opp: "var(--opp)", ned: "var(--ned)", spar: "var(--spar)", pensjon: "var(--pensjon)", verdi: "var(--verdi)" };
-  let lo = 0, hi = 0;
-  for (const [, , base, h] of rows) { lo = Math.min(lo, base, base + h); hi = Math.max(hi, base, base + h); }
-  const pad = (hi - lo) * 0.02; lo -= lo < 0 ? pad : 0; hi += pad;
-  const X = (v) => ((v - lo) / (hi - lo)) * 100;
-  const step = niceStep(hi - lo, window.innerWidth < 560 ? 3 : 5);
-  let ticks = "";
-  for (let t = Math.ceil(lo / step) * step; t <= hi + 1e-9; t += step) {
-    ticks += `<span class="t" style="left:${X(t)}%">${b ? kortKr(t * k) : Math.round(t) + " %"}</span>`;
-  }
-  let html = `<div class="wf-axis"><span></span><div style="position:relative;margin-right:8px">${ticks}</div></div>`;
+  state.antall = rows.length;
+  if (state.steg !== null && state.steg > rows.length - 1) state.steg = rows.length - 1;
+  const steg = state.steg === null ? rows.length - 1 : state.steg;
   const firstIdx = rows.findIndex((x) => x[5] === "first");
-  rows.forEach(([navn, under, base, h, typ, first], i) => {
-    const y0 = Math.min(base, base + h), x0 = X(y0), w = X(y0 + Math.abs(h)) - x0;
-    const text = fmt(s(h), b, typ !== "sum");
-    const inni = w > (b ? 40 : 26);
-    let pos;
-    if (inni) pos = `left:${x0}%;width:${w}%;justify-content:center`;
-    else if (x0 + w < 72) pos = `left:${x0 + w}%`;
-    else pos = `right:${100 - x0}%`;
-    const saving = i >= firstIdx;
-    const fra = typ === "sum" ? "left" : h < 0 ? "right" : "left";   // bar vokser fra der forrige stolpe sluttet
-    html += `<div class="wf-row${saving ? " saving" : ""}${first ? " first-saving" : ""}" style="--i:${i}">
-      <div class="wf-name">${navn}${under ? `<small>${under}</small>` : ""}</div>
-      <div class="wf-track"><span class="wf-zero" style="left:${X(0)}%"></span>
-        <span class="wf-bar" style="left:${x0}%;width:${w}%;background:${color[typ]};transform-origin:${fra} center"></span>
-        <span class="wf-val${inni ? " in" : ""}" style="${pos}">${text}</span></div></div>`;
-  });
-  $("wf").innerHTML = html;
+  const klasser = (i) => (i > steg ? " skjult" : "") + (i === steg && state.nytt && state.steg !== null ? " ny" : "");
   const wf = $("wf");
-  wf.classList.remove("anim");
-  if (state.animer) {
-    void wf.offsetWidth;            // start animasjonen på nytt
-    wf.classList.add("anim");
-    state.animer = false;
-  }
+  wf.classList.toggle("steg", state.steg !== null);
+  const staaende = wf.clientWidth >= 720;
+  wf.innerHTML = staaende ? tegnStaaende(rows, color, b, k, s, firstIdx, klasser) : tegnLiggende(rows, color, b, k, s, firstIdx, klasser);
+  state.nytt = false;
+
+  // Stegkontroller
+  const iSteg = state.steg !== null;
+  $("tilbake").hidden = !iSteg;
+  $("alle").hidden = !iSteg;
+  $("teller").textContent = iSteg ? `${steg + 1} av ${rows.length}` : "";
+  $("neste").textContent = !iSteg ? "Vis steg for steg" : steg >= rows.length - 1 ? "Start på nytt" : `Neste: ${rows[steg + 1][0]}${rows[steg + 1][0] === "Folketrygd" ? " " + rows[steg + 1][1] : ""}`;
+  $("tilbake").disabled = !iSteg || steg === 0;
+  const [nNavn, nUnder, , nH, nTyp] = rows[steg];
+  $("nyinfo").innerHTML = iSteg ? `${esc(nNavn)}${nUnder ? " " + esc(nUnder) : ""}: <b>${esc(fmt(s(nH), b, nTyp !== "sum"))}</b>` : "";
 
   const linjer = [["Bruttolønn", 100], ["Annen inntekt", r.annen], ["Skatt (estimert)", r.skatt], ["Renter", r.renter],
     ["Forbruk (restpost)", r.forbruk], ["Finansiell sparing", r.finansiell], ["  fond og aksjer (nettokjøp)", r.detaljer.fond, "sub"],
@@ -887,6 +922,65 @@ function visLaan(r, b) {
   $("laan").innerHTML = h;
   $("laan").classList.toggle("wide", b);
   $("laanmerk").innerHTML = `<p class="foot">Egen andel av hvert lån. Rente = årets renter i prosent av fjorårets saldo. År igjen er regnet som annuitetslån med årets rente og årets betaling (renter + avdrag), og forutsetter at begge gjelder videre. Et refinansiert lån har ofte ny løpetid, og over 20 % nedbetaling på ett år kan være ekstraordinært; da blir år igjen for kort.</p>`;
+}
+
+// Liggende stolper (smale skjermer)
+function tegnLiggende(rows, color, b, k, s, firstIdx, klasser) {
+  let lo = 0, hi = 0;
+  for (const [, , base, h] of rows) { lo = Math.min(lo, base, base + h); hi = Math.max(hi, base, base + h); }
+  const pad = (hi - lo) * 0.02; lo -= lo < 0 ? pad : 0; hi += pad;
+  const X = (v) => ((v - lo) / (hi - lo)) * 100;
+  const step = niceStep(hi - lo, window.innerWidth < 560 ? 3 : 5);
+  let ticks = "";
+  for (let t = Math.ceil(lo / step) * step; t <= hi + 1e-9; t += step) {
+    ticks += `<span class="t" style="left:${X(t)}%">${b ? kortKr(t * k) : Math.round(t) + " %"}</span>`;
+  }
+  let html = `<div class="wf-axis"><span></span><div style="position:relative;margin-right:8px">${ticks}</div></div>`;
+  rows.forEach(([navn, under, base, h, typ, first], i) => {
+    const y0 = Math.min(base, base + h), x0 = X(y0), w = X(y0 + Math.abs(h)) - x0;
+    const text = fmt(s(h), b, typ !== "sum");
+    const inni = w > (b ? 40 : 26);
+    let pos;
+    if (inni) pos = `left:${x0}%;width:${w}%;justify-content:center`;
+    else if (x0 + w < 72) pos = `left:${x0 + w}%`;
+    else pos = `right:${100 - x0}%`;
+    const fra = typ === "sum" ? "left" : h < 0 ? "right" : "left";   // stolpen vokser fra der forrige sluttet
+    html += `<div class="wf-row${i >= firstIdx ? " saving" : ""}${first ? " first-saving" : ""}${klasser(i)}">
+      <div class="wf-name">${navn}${under ? `<small>${under}</small>` : ""}</div>
+      <div class="wf-track"><span class="wf-zero" style="left:${X(0)}%"></span>
+        <span class="wf-bar" style="left:${x0}%;width:${w}%;background:${color[typ]};transform-origin:${fra} center"></span>
+        <span class="wf-val${inni ? " in" : ""}" style="${pos}">${fmt(s(h), b, typ !== "sum")}</span></div></div>`;
+  });
+  return html;
+}
+
+// Stående fossefall (brede skjermer), som grafen fra Python-programmet
+function tegnStaaende(rows, color, b, k, s, firstIdx, klasser) {
+  let lo = 0, hi = 0;
+  for (const [, , base, h] of rows) { lo = Math.min(lo, base, base + h); hi = Math.max(hi, base, base + h); }
+  const span = hi - lo; hi += span * 0.08; lo -= lo < 0 ? span * 0.04 : 0;
+  const Y = (v) => ((v - lo) / (hi - lo)) * 100;           // prosent fra bunnen
+  const step = niceStep(hi - lo, 6);
+  let akse = "", grid = "";
+  for (let t = Math.ceil(lo / step) * step; t <= hi + 1e-9; t += step) {
+    akse += `<span class="t" style="bottom:${Y(t)}%">${b ? kortKr(t * k) : Math.round(t) + " %"}</span>`;
+    grid += `<span class="wfv-grid${Math.abs(t) < 1e-9 ? " null" : ""}" style="bottom:${Y(t)}%"></span>`;
+  }
+  if (lo < 0) grid += `<span class="wfv-grid null" style="bottom:${Y(0)}%"></span>`;
+  const plotH = $("wf").clientWidth ? Math.min(Math.max(320, window.innerHeight * 0.56), 600) : 400;
+  let kol = "", navn = "";
+  rows.forEach(([n, under, base, h, typ, first], i) => {
+    const y0 = Math.min(base, base + h), bunn = Y(y0), hoyde = Y(y0 + Math.abs(h)) - bunn;
+    const inni = (hoyde / 100) * plotH > 30;
+    const fra = typ === "sum" ? "bottom" : h < 0 ? "top" : "bottom";
+    const val = inni ? `<span class="wfv-val in" style="bottom:${bunn + hoyde / 2}%">${fmt(s(h), b, typ !== "sum")}</span>`
+                     : `<span class="wfv-val" style="bottom:calc(${bunn + hoyde}% + 4px)">${fmt(s(h), b, typ !== "sum")}</span>`;
+    kol += `<div class="wfv-kol${i >= firstIdx ? " saving" : ""}${first ? " first-saving" : ""}${i === rows.length - 1 ? " last" : ""}${klasser(i)}">
+      <span class="wfv-bar" style="bottom:${bunn}%;height:${hoyde}%;background:${color[typ]};transform-origin:center ${fra}"></span>${val}</div>`;
+    navn += `<div class="wfv-name${klasser(i)}">${n}${under ? `<small>${under}</small>` : ""}</div>`;
+  });
+  return `<div class="wfv" style="--n:${rows.length}"><div class="wfv-akse">${akse}</div>
+    <div class="wfv-plot">${grid}${kol}</div><div class="wfv-names">${navn}</div></div>`;
 }
 
 function niceStep(span, n) {
