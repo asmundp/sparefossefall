@@ -100,7 +100,15 @@ details ul { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size
 .foot { font-size: 13px; color: var(--muted); max-width: 70ch }
 #laan { min-width: 520px } #laan.wide { min-width: 820px } #laan td.st:last-child { min-width: 200px }
 @media (max-width: 480px) { td { padding: 7px 4px } td.num { font-size: 13px } .panel { padding: 14px } .wf-name { font-size: 13px } .wf-val { font-size: 12px } }
-@media (prefers-reduced-motion: no-preference) { .wf-bar { transition: left .3s, width .3s } }
+/* Bygg fossefallet én stolpe av gangen. Sluttilstanden er den vanlige tilstanden (fill-mode backwards). */
+@media (prefers-reduced-motion: no-preference) {
+  .wf.anim .wf-bar { animation: wf-vokse .45s cubic-bezier(.2,.7,.3,1) backwards; animation-delay: calc(var(--i) * 300ms) }
+  .wf.anim .wf-val { animation: wf-fram .25s ease-out backwards; animation-delay: calc(var(--i) * 300ms + 300ms) }
+  .wf.anim .wf-row { animation: wf-rad .3s ease-out backwards; animation-delay: calc(var(--i) * 300ms) }
+}
+@keyframes wf-vokse { from { transform: scaleX(0) } }
+@keyframes wf-fram { from { opacity: 0 } }
+@keyframes wf-rad { from { opacity: .35 } }
 </style>
 
 <main lang="nb">
@@ -170,6 +178,7 @@ details ul { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size
       <p class="headline" id="headline"></p>
       <p class="sub" id="sub"></p>
     </div>
+    <div class="row"><button class="btn" type="button" id="spill">Vis oppbyggingen igjen</button></div>
     <div class="wf" id="wf"></div>
     <div class="legend">
       <span><i style="background:var(--sum)"></i>Sum</span>
@@ -200,7 +209,7 @@ details ul { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size
         <li>Forbruk = lønn + annen kontantinntekt − skatt − renter − egen sparing. Det er en restpost.</li>
         <li>Verdiendring = kursendring på fond og aksjer (endring i verdi − nettokjøp) + prisendring på bolig. Den er ikke sparing og påvirker ikke forbruk. Formuesvekst = total sparing + verdiendring. Bolig du eier hele året verdsettes med Skatteetatens markedsverdi. Ved kjøp eller salg brukes faktisk pris som markedsverdi når den er oppgitt (± et halvt års prisvekst), ellers Skatteetatens markedsverdi.</li>
         <li>Skatt er et eget estimat: trygdeavgift, trinnskatt, 22 % på alminnelig inntekt og grov formuesskatt. Ikke med: skattefradrag for pensjonister, fagforeningskontingent, BSU, næringsinntekt, utenlandsk skatt.</li>
-        <li>Folketrygd: 18,1 % av pensjonsgivende inntekt opp til 7,1 G, der G er gjennomsnittlig grunnbeløp for inntektsåret.</li>
+        <li>Folketrygd: 18,1 % av pensjonsgivende inntekt opp til 7,1 G, der G er gjennomsnittlig grunnbeløp for inntektsåret. Opptjeningen deles i den delen som tilsvarer årets trygdeavgift på lønn (7,7 % i 2025) og resten (10,4 %), som tilsvarer en del av arbeidsgiveravgiften (14,1 % av lønn i sone 1). Delingen er en illustrasjon: folketrygden er ikke fondert, og avgiftene finansierer alle folketrygdens ytelser, ikke bare pensjon. Trygdeavgiften er også med i skatten.</li>
         <li>Sparing i bolig er nedbetalt boliglån. Kjøper eller selger du bolig, regnes bytte midt i året: kjøpt bolig − solgt bolig − økning i boliglån. Skriv inn faktisk kjøpesum og salgssum (hele boligen, uten fellesgjeld og omkostninger); de ganges med eierandelen. Uten oppgitt pris anslås den fra Skatteetatens markedsverdi, justert for et halvt års prisvekst. Omkostninger som dokumentavgift og megler regnes som forbruk. Prisendring på bolig du eier hele året er ikke sparing.</li>
         <li>Rente per lån = årets renter ÷ fjorårets saldo (ved boligbytte: snittet av gammel og ny saldo). År igjen regnes som et annuitetslån: årlig betaling A = renter + avdrag, og år igjen = −ln(1 − r·B/A) ÷ ln(1 + r), der B er saldo ved årets slutt. Lån flyttet mellom banker pares etter størrelse innen samme lånetype.</li>
         <li>Ikke med: boligsameiets felles gjeld, barnetrygd og andre stønader som ikke står i skattemeldingen.</li>
@@ -226,6 +235,7 @@ const PARAM = {
 };
 const FT_SATS = 0.181;
 const FT_TAK_G = 7.1;
+const ARBEIDSGIVERAVGIFT = 0.141;   // sone 1; brukes bare i forklarende tekst
 const SKATTEFRI = ["UTGGJ", "TFRI"];
 const BOLIGPRISVEKST = 0.03;   // antatt årlig boligprisvekst; brukes bare til kjøps-/salgspris midt i året
 
@@ -591,6 +601,10 @@ function beregn(filA, filB, { kurs = "snitt", otp_sats = 0.02, otp_kilde = "anta
 
   const tak = ft_tak ? ft_tak : FT_TAK_G * p.G_snitt;
   const folketrygd = FT_SATS * Math.min(ink.pensjonsgivende, tak);
+  // Fordeling av opptjeningen (illustrasjon; folketrygden er ikke fondert)
+  const ft_egen_sats = Math.min(p.trygd_lonn, FT_SATS);
+  const folketrygd_egen = (folketrygd * ft_egen_sats) / FT_SATS;
+  const folketrygd_ag = folketrygd - folketrygd_egen;
   const otp = otp_sats * ink.lonn;
 
   if (bytte && (bytte.kjop_kilde === "anslått" || bytte.salg_kilde === "anslått")) varsler.push({ niva: "merk", id: "boligpris",
@@ -604,7 +618,8 @@ function beregn(filA, filB, { kurs = "snitt", otp_sats = 0.02, otp_kilde = "anta
   return { aar, forrige_aar: gml.aar, lonn: L, kurs, otp_sats, otp_kilde, ft_tak: tak, G_snitt: p.G_snitt,
     annen: pst(ink.annen_inntekt), skatt: -pst(ink.skatt), renter: -pst(renter), forbruk: -pst(forbruk),
     finansiell: pst(finansiell), bolig: pst(bolig), premie: pst(ink.premie), netto: pst(nettosparing),
-    folketrygd: pst(folketrygd), otp: pst(otp), total: pst(nettosparing + folketrygd + otp),
+    folketrygd: pst(folketrygd), otp: pst(otp),
+    folketrygd_egen: pst(folketrygd_egen), folketrygd_ag: pst(folketrygd_ag), ft_egen_sats, total: pst(nettosparing + folketrygd + otp),
     verdiendring: pst(kursendring + boligverdi), formuesvekst: pst(nettosparing + folketrygd + otp + kursendring + boligverdi),
     detaljer: { fond: pst(fond), bank: pst(bank), annen_gjeld: pst(gj.annen), nye_laan: pst(gj.nye),
       kursendring: pst(kursendring), boligverdi: pst(boligverdi) },
@@ -641,7 +656,7 @@ if (typeof module !== "undefined") module.exports = { les, beregn, innskuddFraEg
 
 const EKSEMPEL = [{"visningsdata": {"inntektsaar": "2024", "arbeidsgiver": [{"samledeYtelserFraArbeidsgiverPerBehandlingsart": [{"behandlingsart": "LONN", "beloep": {"beloep": "820000"}}, {"behandlingsart": "FRI", "beloep": "6000"}, {"behandlingsart": "UTGGJ", "beloep": "3000"}]}], "konto": [{"id": "k1", "bankensNavn": "DNB", "innskudd": "210000", "opptjenteRenter": "4200,50"}, {"id": "b1", "bankensNavn": "SPAREBANK 1 BOLIGKREDITT", "gjeld": "3400000", "paaloepteRenter": "98000", "prosentandelAvGjeldInnskuddOgRente": "50", "andelAvGjeld": "1700000.0", "andelAvPaaloepteRenter": "49000"}, {"id": "s1", "bankensNavn": "Statens lånekasse for utdanning", "organisasjonsnummer": "960885406", "gjeld": "160000", "paaloepteRenter": "8000"}], "verdipapirfond": [{"isinnummer": "NO0010582984", "antallAndeler": "900", "verdiFoerVerdsettingsrabattForAndelIAksjedel": "270000", "verdiFoerVerdsettingsrabattForAndelIRentedel": "0", "skattepliktigGevinstVedRealisasjonAvAndelIAksjedel": "0"}], "aksjesparekonto": [{"verdiFoerVerdsettingsrabattForAksjedel": "72000", "finansprodukt": [{"isinnummer": "US0378331005", "antall": "40"}]}], "aksjeIAksjonaerregisteret": [{"isinnummer": "NO0003054108", "antallAksjer": "300", "verdiFoerVerdsettingsrabattForAksje": "66000", "skattepliktigUtbytte": "3500"}], "virtuellEiendel": [{"navn": "Bitcoin", "antall": "0.05", "formuesverdiforVirtuellEiendel": "30000"}], "minstefradragOgKostnaderKnyttetTilArbeidOgAnnenInntekt": [{"minstefradragIInntekt": "92000"}], "pensjonspremieIArbeidsforhold": [{"fradragForPensjonspremieTilPensjonsordningIArbeidsforholdFradragsberettigetBeloep": "12000"}], "fastEiendom": [{"sergEiendomsidentifikator": "0301-1-2-0-0", "fastEiendomSomFormuesobjekt": [{"formuesverdiForFormuesandel": "1450000", "verdiFoerVerdsettingsrabattForFormuesandel": "5800000"}]}], "kjoeretoey": [{"formuesverdiForFormuesandelForKjoeretoey": "180000"}]}}, {"visningsdata": {"inntektsaar": "2025", "arbeidsgiver": [{"samledeYtelserFraArbeidsgiverPerBehandlingsart": [{"behandlingsart": "LONN", "beloep": {"beloep": "865000"}}, {"behandlingsart": "FRI", "beloep": "6000"}, {"behandlingsart": "UTGGJ", "beloep": "3000"}]}], "konto": [{"id": "k1", "bankensNavn": "DNB", "innskudd": "265000", "opptjenteRenter": "4200,50"}, {"id": "b2", "bankensNavn": "SPAREBANK 1 BOLIGKREDITT", "gjeld": "3280000", "paaloepteRenter": "98000", "prosentandelAvGjeldInnskuddOgRente": "50", "andelAvGjeld": "1640000.0", "andelAvPaaloepteRenter": "49000"}, {"id": "s1", "bankensNavn": "Statens lånekasse for utdanning", "organisasjonsnummer": "960885406", "gjeld": "142000", "paaloepteRenter": "8000"}, {"id": "c1", "bankensNavn": "Bank Norwegian", "gjeld": "18000", "paaloepteRenter": "2600"}], "verdipapirfond": [{"isinnummer": "NO0010582984", "antallAndeler": "1150", "verdiFoerVerdsettingsrabattForAndelIAksjedel": "380000", "verdiFoerVerdsettingsrabattForAndelIRentedel": "0", "skattepliktigGevinstVedRealisasjonAvAndelIAksjedel": "0"}], "aksjesparekonto": [{"verdiFoerVerdsettingsrabattForAksjedel": "118000", "finansprodukt": [{"isinnummer": "US0378331005", "antall": "55"}]}], "aksjeIAksjonaerregisteret": [{"isinnummer": "NO0003054108", "antallAksjer": "300", "verdiFoerVerdsettingsrabattForAksje": "72000", "skattepliktigUtbytte": "3500"}], "virtuellEiendel": [{"navn": "Bitcoin", "antall": "0.05", "formuesverdiforVirtuellEiendel": "48000"}], "minstefradragOgKostnaderKnyttetTilArbeidOgAnnenInntekt": [{"minstefradragIInntekt": "92000"}], "pensjonspremieIArbeidsforhold": [{"fradragForPensjonspremieTilPensjonsordningIArbeidsforholdFradragsberettigetBeloep": "12000"}], "fastEiendom": [{"sergEiendomsidentifikator": "0301-1-2-0-0", "fastEiendomSomFormuesobjekt": [{"formuesverdiForFormuesandel": "1500000", "verdiFoerVerdsettingsrabattForFormuesandel": "6000000"}]}], "kjoeretoey": [{"formuesverdiForFormuesandelForKjoeretoey": "180000"}]}}];
 
-const state = { filer: [], egnedata: null, belop: false, eksempel: true };
+const state = { filer: [], egnedata: null, belop: false, eksempel: true, animer: true };
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -671,9 +686,10 @@ $("filer").addEventListener("change", async (e) => {
   state.filer.sort((a, b) => b.aar - a.aar);
   if (state.filer.length > 2) state.filer = state.filer.slice(0, 2);
   state.eksempel = false;
+  state.animer = true;
   oppdater();
 });
-$("nullstill").addEventListener("click", () => { state.filer = []; state.egnedata = null; state.eksempel = true; $("kjopspris").value = ""; $("salgspris").value = ""; oppdater(); });
+$("nullstill").addEventListener("click", () => { state.animer = true; state.filer = []; state.egnedata = null; state.eksempel = true; $("kjopspris").value = ""; $("salgspris").value = ""; oppdater(); });
 $("egnedata").addEventListener("change", async (e) => {
   const f = e.target.files[0]; e.target.value = "";
   if (!f) return;
@@ -697,8 +713,9 @@ function lesBelop(tekst) {
   const n = mill ? Number(s.replace(",", ".")) * 1e6 : Number(s.replace(/[.,]/g, ""));
   return Number.isFinite(n) && n >= 100000 ? n : NaN;
 }
-$("v-pst").addEventListener("click", () => { state.belop = false; oppdater(); });
-$("v-kr").addEventListener("click", () => { state.belop = true; oppdater(); });
+$("v-pst").addEventListener("click", () => { state.belop = false; state.animer = true; oppdater(); });
+$("v-kr").addEventListener("click", () => { state.belop = true; state.animer = true; oppdater(); });
+$("spill").addEventListener("click", () => { state.animer = true; oppdater(); });
 window.addEventListener("resize", () => { clearTimeout(window.__rt); window.__rt = setTimeout(oppdater, 150); });
 
 function otpSats(lonn) {
@@ -782,7 +799,8 @@ function vis({ r, feil, eksempel }) {
     ["Sparing i bolig", r.boligbytte ? "kjøp − salg − lån" : "nedbetalt boliglån", r.finansiell, r.bolig, "spar"],
   ];
   if (Math.abs(r.premie) > 0.05) rows.push(["Egen pensjonspremie", "", r.finansiell + r.bolig, r.premie, "pensjon"]);
-  rows.push(["Folketrygd", "opptjening", r.netto, r.folketrygd, "pensjon"],
+  rows.push(["Folketrygd", "fra egen trygdeavgift", r.netto, r.folketrygd_egen, "pensjon"],
+    ["Folketrygd", "fra arbeidsgiveravgift", r.netto + r.folketrygd_egen, r.folketrygd_ag, "pensjon"],
     ["Tjenestepensjon", r.otp_kilde === "egnedata" ? "avtalt" : "antatt", r.netto + r.folketrygd, r.otp, "pensjon"],
     ["Total sparing", "", 0, r.total, "sum"],
     ["Verdiendring", "ikke sparing", r.total, r.verdiendring, "verdi"],
@@ -798,22 +816,31 @@ function vis({ r, feil, eksempel }) {
     ticks += `<span class="t" style="left:${X(t)}%">${b ? kortKr(t * k) : Math.round(t) + " %"}</span>`;
   }
   let html = `<div class="wf-axis"><span></span><div style="position:relative;margin-right:8px">${ticks}</div></div>`;
-  for (const [navn, under, base, h, typ, first] of rows) {
+  const firstIdx = rows.findIndex((x) => x[5] === "first");
+  rows.forEach(([navn, under, base, h, typ, first], i) => {
     const y0 = Math.min(base, base + h), x0 = X(y0), w = X(y0 + Math.abs(h)) - x0;
     const text = fmt(s(h), b, typ !== "sum");
-    const inni = w > (b ? 30 : 17);
+    const inni = w > (b ? 40 : 26);
     let pos;
     if (inni) pos = `left:${x0}%;width:${w}%;justify-content:center`;
     else if (x0 + w < 72) pos = `left:${x0 + w}%`;
     else pos = `right:${100 - x0}%`;
-    const saving = rows.indexOf(rows.find((x) => x[5] === "first")) <= rows.findIndex((x) => x[0] === navn);
-    html += `<div class="wf-row${saving ? " saving" : ""}${first ? " first-saving" : ""}">
+    const saving = i >= firstIdx;
+    const fra = typ === "sum" ? "left" : h < 0 ? "right" : "left";   // bar vokser fra der forrige stolpe sluttet
+    html += `<div class="wf-row${saving ? " saving" : ""}${first ? " first-saving" : ""}" style="--i:${i}">
       <div class="wf-name">${navn}${under ? `<small>${under}</small>` : ""}</div>
       <div class="wf-track"><span class="wf-zero" style="left:${X(0)}%"></span>
-        <span class="wf-bar" style="left:${x0}%;width:${w}%;background:${color[typ]}"></span>
+        <span class="wf-bar" style="left:${x0}%;width:${w}%;background:${color[typ]};transform-origin:${fra} center"></span>
         <span class="wf-val${inni ? " in" : ""}" style="${pos}">${text}</span></div></div>`;
-  }
+  });
   $("wf").innerHTML = html;
+  const wf = $("wf");
+  wf.classList.remove("anim");
+  if (state.animer) {
+    void wf.offsetWidth;            // start animasjonen på nytt
+    wf.classList.add("anim");
+    state.animer = false;
+  }
 
   const linjer = [["Bruttolønn", 100], ["Annen inntekt", r.annen], ["Skatt (estimert)", r.skatt], ["Renter", r.renter],
     ["Forbruk (restpost)", r.forbruk], ["Finansiell sparing", r.finansiell], ["  fond og aksjer (nettokjøp)", r.detaljer.fond, "sub"],
@@ -822,7 +849,8 @@ function vis({ r, feil, eksempel }) {
     ...(r.boligbytte ? [[`  kjøpt bolig (${prisord(r.boligbytte.kjop_kilde, "kjøpesum")})`, r.boligbytte.kjop, "sub"],
       [`  solgt bolig (${prisord(r.boligbytte.salg_kilde, "salgssum")})`, r.boligbytte.salg, "sub"], ["  økning i boliglån", r.boligbytte.gjeld, "sub"]] : []),
     ["Egen pensjonspremie", r.premie],
-    ["Egen sparing", r.netto, "tot"], ["Folketrygd (opptjening)", r.folketrygd],
+    ["Egen sparing", r.netto, "tot"], [`Folketrygd, fra egen trygdeavgift (${(r.ft_egen_sats * 100).toFixed(1).replace(".", ",")} %)`, r.folketrygd_egen],
+    [`Folketrygd, fra arbeidsgiveravgift (${((0.181 - r.ft_egen_sats) * 100).toFixed(1).replace(".", ",")} % av 14,1 %)`, r.folketrygd_ag],
     [r.otp_kilde === "egnedata" ? "Tjenestepensjon (avtalt)" : "Tjenestepensjon (antatt)", r.otp], ["Total sparing", r.total, "tot"],
     ["Verdiendring (ikke sparing)", r.verdiendring], ["  kursendring fond og aksjer", r.detaljer.kursendring, "sub"],
     ["  prisendring bolig", r.detaljer.boligverdi, "sub"], ["Formuesvekst", r.formuesvekst, "tot"]];
@@ -834,7 +862,7 @@ function vis({ r, feil, eksempel }) {
 
   const kursord = { snitt: "snittet av start- og sluttkurs", start: "kursen ved årets start", slutt: "kursen ved årets slutt" }[r.kurs];
   $("note").textContent = `Skatt er estimert, ikke Skatteetatens beregning. ${r.boligbytte ? `Sparing i bolig er kjøpt bolig minus solgt bolig minus økning i boliglån, med bytte antatt midt i året. Faktisk pris ganges med eierandelen; uten oppgitt pris anslås den fra Skatteetatens markedsverdi og ${(r.boligbytte.prisvekst * 100).toFixed(1).replace(".", ",")} % årlig prisvekst. Omkostninger som dokumentavgift og megler regnes som forbruk.` : "Sparing i bolig er nedbetalt boliglån."} Prisendring på bolig du eier hele året og kursgevinster er ikke sparing. Fondskjøp er verdsatt til ${kursord}. `
-    + `Folketrygd: 18,1 % av pensjonsgivende inntekt opp til ${kr(r.ft_tak)} kr (7,1 × gjennomsnittlig G ${kr(r.G_snitt)} kr for ${r.aar}). `
+    + `Folketrygd: 18,1 % av pensjonsgivende inntekt opp til ${kr(r.ft_tak)} kr (7,1 × gjennomsnittlig G ${kr(r.G_snitt)} kr for ${r.aar}), delt i ${(r.ft_egen_sats * 100).toFixed(1).replace(".", ",")} % som tilsvarer trygdeavgiften på lønn og ${((0.181 - r.ft_egen_sats) * 100).toFixed(1).replace(".", ",")} % av arbeidsgiveravgiften på 14,1 %. Delingen er en illustrasjon: folketrygden er ikke fondert, og avgiftene finansierer alle ytelsene. `
     + `Tjenestepensjon: ${r.otp_kilde === "egnedata" ? "avtalt årlig innskudd fra EgneData" : "antatt"}, ${(r.otp_sats * 100).toFixed(1).replace(".", ",")} % av lønn, betalt av arbeidsgiver i tillegg til lønn. `
     + `Verdiendring er kursendring på fond og aksjer og prisendring på bolig; den er ikke sparing og påvirker ikke forbruk.`;
 }
