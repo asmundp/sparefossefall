@@ -162,10 +162,10 @@ details ul { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size
     <div class="grid2">
       <div class="step">
         <span class="label">2 · Tjenestepensjon</span>
-        <p class="help">Arbeidsgivers innskudd står ikke i skattemeldingen. Velg egnedata.json, eller skriv inn satsen.</p>
+        <p class="help">Arbeidsgivers innskudd står ikke i skattemeldingen. Velg en pensjonsdatafil (JSON med avtalt årlig innskudd), eller skriv inn satsen.</p>
         <div class="row">
-          <label class="btn" for="egnedata">Velg egnedata.json</label>
-          <input type="file" id="egnedata">
+          <label class="btn" for="pensjonsdata">Velg pensjonsdatafil</label>
+          <input type="file" id="pensjonsdata">
           <div class="field"><input id="otp" inputmode="decimal" value="2" aria-label="Arbeidsgivers innskudd i prosent av lønn"><span>% av lønn</span></div>
         </div>
         <p class="help" id="otpinfo">Minstekravet er 2 %, snittet rundt 4 %.</p>
@@ -192,9 +192,9 @@ details ul { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size
       <p class="help" id="bolighjelp">Skattemeldingene viser kjøp eller salg av bolig. Skriv inn faktisk pris for hele boligen, uten fellesgjeld og omkostninger. Den står i kjøpekontrakten, eller som tinglyst omsetning på seeiendom.kartverket.no. Tomt felt: Skatteetatens anslag brukes.</p>
       <div class="grid2">
         <div class="step" id="kjopsteg"><label class="help" for="kjopspris">Kjøpesum for ny bolig</label>
-          <div class="field"><input id="kjopspris" class="belop" inputmode="numeric" placeholder="f.eks. 11 800 000" aria-describedby="bolighjelp"><span>kr</span></div></div>
+          <div class="field"><input id="kjopspris" class="belop" inputmode="numeric" placeholder="f.eks. 6 500 000" aria-describedby="bolighjelp"><span>kr</span></div></div>
         <div class="step" id="salgsteg"><label class="help" for="salgspris">Salgssum for tidligere bolig</label>
-          <div class="field"><input id="salgspris" class="belop" inputmode="numeric" placeholder="f.eks. 9 500 000" aria-describedby="bolighjelp"><span>kr</span></div></div>
+          <div class="field"><input id="salgspris" class="belop" inputmode="numeric" placeholder="f.eks. 5 200 000" aria-describedby="bolighjelp"><span>kr</span></div></div>
       </div>
       <p class="help" id="boliginfo"></p>
     </div>
@@ -239,7 +239,7 @@ details ul { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size
         <li>Egen sparing = nettokjøp av fond, aksjer og krypto + endring i bankinnskudd + nedbetalt gjeld − nye lån + egen pensjonspremie.</li>
         <li>Nettokjøp = endring i antall andeler × kurs. Kursendringer er ikke sparing.</li>
         <li>Lån flyttet mellom banker (refinansiering) pares mot hverandre etter størrelse innen samme lånetype.</li>
-        <li>Lånetype: Lånekassen er studielån. Boligkreditt, felles lån eller lån over 500 000 kr regnes som boliglån. Resten er annen gjeld.</li>
+        <li>Lånetype: statlig studielån (org.nr. 960885406) er studielån. Lån fra et boligkredittforetak, felles lån eller lån over 500 000 kr regnes som boliglån. Resten er annen gjeld.</li>
         <li>Forbruk = lønn + annen kontantinntekt − skatt − renter − egen sparing. Det er en restpost.</li>
         <li>Verdiendring = kursendring på fond og aksjer (endring i verdi − nettokjøp) + prisendring på bolig. Den er ikke sparing og påvirker ikke forbruk. Formuesvekst = total sparing + verdiendring. Bolig du eier hele året verdsettes med Skatteetatens markedsverdi. Ved kjøp eller salg brukes faktisk pris som markedsverdi når den er oppgitt (± et halvt års prisvekst), ellers Skatteetatens markedsverdi.</li>
         <li>Skatt er et eget estimat: trygdeavgift, trinnskatt, 22 % på alminnelig inntekt og grov formuesskatt. Ikke med: skattefradrag for pensjonister, fagforeningskontingent, BSU, næringsinntekt, utenlandsk skatt.</li>
@@ -320,6 +320,14 @@ function laanetype(k, g) {
   return "annen";
 }
 
+// Nøkkel som kobler samme verdipapir på tvers av år: ISIN, ellers navn, ellers id uten prefikset "UV-"
+// (Skatteetaten kan endre id fra ett år til det neste). Samme regler som papirnokkel() i Python.
+function papirnokkel(isin, navn, id, prefiks = "") {
+  if (isin) return prefiks + String(isin).trim().toUpperCase();
+  if (navn && String(navn).trim()) return prefiks + "NAVN:" + String(navn).toUpperCase().split(/\s+/).filter(Boolean).join(" ");
+  return prefiks + "ID:" + String(id || "").replace(/^UV-/, "");
+}
+
 function beholdning(v) {
   const b = { innskudd: 0, gjeld: new Map(), papirer: new Map(), renter_betalt: 0, renter_mottatt: 0,
     renter_per_konto: new Map(), banknavn: new Map() };
@@ -341,7 +349,7 @@ function beholdning(v) {
     } else b.papirer.set(nokkel, [antall, verdi, notert]);
   };
   for (const f of arr(v.verdipapirfond)) {
-    if (f.antallAndeler) papir(f.isinnummer || f.id, num(f.antallAndeler),
+    if (f.antallAndeler) papir(papirnokkel(f.isinnummer, f.fondetsNavn, f.id), num(f.antallAndeler),
       num(f.verdiFoerVerdsettingsrabattForAndelIAksjedel) + num(f.verdiFoerVerdsettingsrabattForAndelIRentedel));
   }
   for (const a of arr(v.aksjesparekonto)) {
@@ -350,17 +358,17 @@ function beholdning(v) {
     const verdi = num(a.verdiFoerVerdsettingsrabattForAksjedel);
     for (const p of prod) {
       const vekt = tot ? num(p.antall) / tot : 0;
-      papir("ASK:" + (p.isinnummer || p.id || ""), num(p.antall), verdi * vekt);
+      papir(papirnokkel(p.isinnummer, p.finansproduktetsNavn, p.id, "ASK:"), num(p.antall), verdi * vekt);
     }
   }
   for (const felt of ["aksjeIAksjonaerregisteret", "aksjeIkkeIAksjonaerregisteret"]) {
     for (const a of arr(v[felt])) {
-      if (a.antallAksjer) papir(a.isinnummer || a.id, num(a.antallAksjer),
+      if (a.antallAksjer) papir(papirnokkel(a.isinnummer, a.selskapetsNavn, a.id), num(a.antallAksjer),
         num(a.verdiFoerVerdsettingsrabattForAksje), Boolean(a.isinnummer));
     }
   }
   for (const x of arr(v.virtuellEiendel)) {
-    papir("VIRT:" + (x.navn || x.id || ""), num(x.antall), num(x.formuesverdiforVirtuellEiendel));
+    papir(papirnokkel(null, x.navn, x.id, "VIRT:"), num(x.antall), num(x.formuesverdiforVirtuellEiendel));
   }
   return b;
 }
@@ -674,7 +682,7 @@ function finnNokkel(data, nokkel) {
   }
   return funn;
 }
-function innskuddFraEgnedata(tekst, navn) {
+function innskuddFraPensjonsdata(tekst, navn) {
   const data = parseJson(tekst, navn);
   const funn = finnNokkel(data, "sumAvtaltAarligInnskudd").filter((x) => x > 0);
   if (!funn.length) throw new Feil(`Fant ikke avtalt årlig innskudd (sumAvtaltAarligInnskudd) i ${navn}.`);
@@ -685,12 +693,12 @@ function kr(x) {
   return Math.round(x).toLocaleString("nb-NO").replace(/\s/g, " ");
 }
 
-if (typeof module !== "undefined") module.exports = { les, beregn, innskuddFraEgnedata, lonnFra, kr, Feil, PARAM };
+if (typeof module !== "undefined") module.exports = { les, beregn, innskuddFraPensjonsdata, lonnFra, kr, Feil, PARAM };
 
 
-const EKSEMPEL = [{"visningsdata": {"inntektsaar": "2024", "arbeidsgiver": [{"samledeYtelserFraArbeidsgiverPerBehandlingsart": [{"behandlingsart": "LONN", "beloep": {"beloep": "820000"}}, {"behandlingsart": "FRI", "beloep": "6000"}, {"behandlingsart": "UTGGJ", "beloep": "3000"}]}], "konto": [{"id": "k1", "bankensNavn": "DNB", "innskudd": "210000", "opptjenteRenter": "4200,50"}, {"id": "b1", "bankensNavn": "SPAREBANK 1 BOLIGKREDITT", "gjeld": "3400000", "paaloepteRenter": "98000", "prosentandelAvGjeldInnskuddOgRente": "50", "andelAvGjeld": "1700000.0", "andelAvPaaloepteRenter": "49000"}, {"id": "s1", "bankensNavn": "Statens lånekasse for utdanning", "organisasjonsnummer": "960885406", "gjeld": "160000", "paaloepteRenter": "8000"}], "verdipapirfond": [{"isinnummer": "NO0010582984", "antallAndeler": "900", "verdiFoerVerdsettingsrabattForAndelIAksjedel": "270000", "verdiFoerVerdsettingsrabattForAndelIRentedel": "0", "skattepliktigGevinstVedRealisasjonAvAndelIAksjedel": "0"}], "aksjesparekonto": [{"verdiFoerVerdsettingsrabattForAksjedel": "72000", "finansprodukt": [{"isinnummer": "US0378331005", "antall": "40"}]}], "aksjeIAksjonaerregisteret": [{"isinnummer": "NO0003054108", "antallAksjer": "300", "verdiFoerVerdsettingsrabattForAksje": "66000", "skattepliktigUtbytte": "3500"}], "virtuellEiendel": [{"navn": "Bitcoin", "antall": "0.05", "formuesverdiforVirtuellEiendel": "30000"}], "minstefradragOgKostnaderKnyttetTilArbeidOgAnnenInntekt": [{"minstefradragIInntekt": "92000"}], "pensjonspremieIArbeidsforhold": [{"fradragForPensjonspremieTilPensjonsordningIArbeidsforholdFradragsberettigetBeloep": "12000"}], "fastEiendom": [{"sergEiendomsidentifikator": "0301-1-2-0-0", "fastEiendomSomFormuesobjekt": [{"formuesverdiForFormuesandel": "1450000", "verdiFoerVerdsettingsrabattForFormuesandel": "5800000"}]}], "kjoeretoey": [{"formuesverdiForFormuesandelForKjoeretoey": "180000"}]}}, {"visningsdata": {"inntektsaar": "2025", "arbeidsgiver": [{"samledeYtelserFraArbeidsgiverPerBehandlingsart": [{"behandlingsart": "LONN", "beloep": {"beloep": "865000"}}, {"behandlingsart": "FRI", "beloep": "6000"}, {"behandlingsart": "UTGGJ", "beloep": "3000"}]}], "konto": [{"id": "k1", "bankensNavn": "DNB", "innskudd": "265000", "opptjenteRenter": "4200,50"}, {"id": "b2", "bankensNavn": "SPAREBANK 1 BOLIGKREDITT", "gjeld": "3280000", "paaloepteRenter": "98000", "prosentandelAvGjeldInnskuddOgRente": "50", "andelAvGjeld": "1640000.0", "andelAvPaaloepteRenter": "49000"}, {"id": "s1", "bankensNavn": "Statens lånekasse for utdanning", "organisasjonsnummer": "960885406", "gjeld": "142000", "paaloepteRenter": "8000"}, {"id": "c1", "bankensNavn": "Bank Norwegian", "gjeld": "18000", "paaloepteRenter": "2600"}], "verdipapirfond": [{"isinnummer": "NO0010582984", "antallAndeler": "1150", "verdiFoerVerdsettingsrabattForAndelIAksjedel": "380000", "verdiFoerVerdsettingsrabattForAndelIRentedel": "0", "skattepliktigGevinstVedRealisasjonAvAndelIAksjedel": "0"}], "aksjesparekonto": [{"verdiFoerVerdsettingsrabattForAksjedel": "118000", "finansprodukt": [{"isinnummer": "US0378331005", "antall": "55"}]}], "aksjeIAksjonaerregisteret": [{"isinnummer": "NO0003054108", "antallAksjer": "300", "verdiFoerVerdsettingsrabattForAksje": "72000", "skattepliktigUtbytte": "3500"}], "virtuellEiendel": [{"navn": "Bitcoin", "antall": "0.05", "formuesverdiforVirtuellEiendel": "48000"}], "minstefradragOgKostnaderKnyttetTilArbeidOgAnnenInntekt": [{"minstefradragIInntekt": "92000"}], "pensjonspremieIArbeidsforhold": [{"fradragForPensjonspremieTilPensjonsordningIArbeidsforholdFradragsberettigetBeloep": "12000"}], "fastEiendom": [{"sergEiendomsidentifikator": "0301-1-2-0-0", "fastEiendomSomFormuesobjekt": [{"formuesverdiForFormuesandel": "1500000", "verdiFoerVerdsettingsrabattForFormuesandel": "6000000"}]}], "kjoeretoey": [{"formuesverdiForFormuesandelForKjoeretoey": "180000"}]}}];
+const EKSEMPEL = [{"visningsdata": {"inntektsaar": "2024", "arbeidsgiver": [{"samledeYtelserFraArbeidsgiverPerBehandlingsart": [{"behandlingsart": "LONN", "beloep": {"beloep": "820000"}}, {"behandlingsart": "FRI", "beloep": "6000"}, {"behandlingsart": "UTGGJ", "beloep": "3000"}]}], "konto": [{"id": "k1", "bankensNavn": "Bank A", "innskudd": "210000", "opptjenteRenter": "4200,50"}, {"id": "b1", "bankensNavn": "Bank B", "gjeld": "3400000", "paaloepteRenter": "98000", "prosentandelAvGjeldInnskuddOgRente": "50", "andelAvGjeld": "1700000.0", "andelAvPaaloepteRenter": "49000"}, {"id": "s1", "bankensNavn": "Studielån", "organisasjonsnummer": "960885406", "gjeld": "160000", "paaloepteRenter": "8000"}], "verdipapirfond": [{"isinnummer": "XX0000000001", "antallAndeler": "900", "verdiFoerVerdsettingsrabattForAndelIAksjedel": "270000", "verdiFoerVerdsettingsrabattForAndelIRentedel": "0", "skattepliktigGevinstVedRealisasjonAvAndelIAksjedel": "0"}], "aksjesparekonto": [{"verdiFoerVerdsettingsrabattForAksjedel": "72000", "finansprodukt": [{"isinnummer": "XX0000000002", "antall": "40"}]}], "aksjeIAksjonaerregisteret": [{"isinnummer": "XX0000000003", "antallAksjer": "300", "verdiFoerVerdsettingsrabattForAksje": "66000", "skattepliktigUtbytte": "3500"}], "virtuellEiendel": [{"navn": "Kryptovaluta A", "antall": "0.05", "formuesverdiforVirtuellEiendel": "30000"}], "minstefradragOgKostnaderKnyttetTilArbeidOgAnnenInntekt": [{"minstefradragIInntekt": "92000"}], "pensjonspremieIArbeidsforhold": [{"fradragForPensjonspremieTilPensjonsordningIArbeidsforholdFradragsberettigetBeloep": "12000"}], "fastEiendom": [{"sergEiendomsidentifikator": "eiendom-1", "fastEiendomSomFormuesobjekt": [{"formuesverdiForFormuesandel": "1450000", "verdiFoerVerdsettingsrabattForFormuesandel": "5800000"}]}], "kjoeretoey": [{"formuesverdiForFormuesandelForKjoeretoey": "180000"}]}}, {"visningsdata": {"inntektsaar": "2025", "arbeidsgiver": [{"samledeYtelserFraArbeidsgiverPerBehandlingsart": [{"behandlingsart": "LONN", "beloep": {"beloep": "865000"}}, {"behandlingsart": "FRI", "beloep": "6000"}, {"behandlingsart": "UTGGJ", "beloep": "3000"}]}], "konto": [{"id": "k1", "bankensNavn": "Bank A", "innskudd": "265000", "opptjenteRenter": "4200,50"}, {"id": "b2", "bankensNavn": "Bank B", "gjeld": "3280000", "paaloepteRenter": "98000", "prosentandelAvGjeldInnskuddOgRente": "50", "andelAvGjeld": "1640000.0", "andelAvPaaloepteRenter": "49000"}, {"id": "s1", "bankensNavn": "Studielån", "organisasjonsnummer": "960885406", "gjeld": "142000", "paaloepteRenter": "8000"}, {"id": "c1", "bankensNavn": "Bank C", "gjeld": "18000", "paaloepteRenter": "2600"}], "verdipapirfond": [{"isinnummer": "XX0000000001", "antallAndeler": "1150", "verdiFoerVerdsettingsrabattForAndelIAksjedel": "380000", "verdiFoerVerdsettingsrabattForAndelIRentedel": "0", "skattepliktigGevinstVedRealisasjonAvAndelIAksjedel": "0"}], "aksjesparekonto": [{"verdiFoerVerdsettingsrabattForAksjedel": "118000", "finansprodukt": [{"isinnummer": "XX0000000002", "antall": "55"}]}], "aksjeIAksjonaerregisteret": [{"isinnummer": "XX0000000003", "antallAksjer": "300", "verdiFoerVerdsettingsrabattForAksje": "72000", "skattepliktigUtbytte": "3500"}], "virtuellEiendel": [{"navn": "Kryptovaluta A", "antall": "0.05", "formuesverdiforVirtuellEiendel": "48000"}], "minstefradragOgKostnaderKnyttetTilArbeidOgAnnenInntekt": [{"minstefradragIInntekt": "92000"}], "pensjonspremieIArbeidsforhold": [{"fradragForPensjonspremieTilPensjonsordningIArbeidsforholdFradragsberettigetBeloep": "12000"}], "fastEiendom": [{"sergEiendomsidentifikator": "eiendom-1", "fastEiendomSomFormuesobjekt": [{"formuesverdiForFormuesandel": "1500000", "verdiFoerVerdsettingsrabattForFormuesandel": "6000000"}]}], "kjoeretoey": [{"formuesverdiForFormuesandelForKjoeretoey": "180000"}]}}];
 
-const state = { filer: [], egnedata: null, belop: false, eksempel: true, steg: null, nytt: false, antall: 0 };
+const state = { filer: [], pensjonsdata: null, belop: false, eksempel: true, steg: null, nytt: false, antall: 0 };
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -723,21 +731,21 @@ $("filer").addEventListener("change", async (e) => {
   state.steg = 0; state.nytt = true;     // nye filer: bygg fossefallet steg for steg
   oppdater();
 });
-$("nullstill").addEventListener("click", () => { state.steg = null; state.filer = []; state.egnedata = null; state.eksempel = true; $("kjopspris").value = ""; $("salgspris").value = ""; oppdater(); });
-$("egnedata").addEventListener("change", async (e) => {
+$("nullstill").addEventListener("click", () => { state.steg = null; state.filer = []; state.pensjonsdata = null; state.eksempel = true; $("kjopspris").value = ""; $("salgspris").value = ""; oppdater(); });
+$("pensjonsdata").addEventListener("change", async (e) => {
   const f = e.target.files[0]; e.target.value = "";
   if (!f) return;
-  try { state.egnedata = { navn: f.name, ...innskuddFraEgnedata(await lesFil(f), f.name) }; }
-  catch (err) { state.egnedata = null; $("otpinfo").textContent = err instanceof Feil ? err.message : `Kunne ikke lese ${f.name}.`; return; }
+  try { state.pensjonsdata = { navn: f.name, ...innskuddFraPensjonsdata(await lesFil(f), f.name) }; }
+  catch (err) { state.pensjonsdata = null; $("otpinfo").textContent = err instanceof Feil ? err.message : `Kunne ikke lese ${f.name}.`; return; }
   oppdater();
 });
-$("otp").addEventListener("input", () => { state.egnedata = null; oppdater(); });
+$("otp").addEventListener("input", () => { state.pensjonsdata = null; oppdater(); });
 $("kurs").addEventListener("change", oppdater);
 $("prisvekst").addEventListener("input", oppdater);
 $("kjopspris").addEventListener("input", oppdater);
 $("salgspris").addEventListener("input", oppdater);
 
-// '11 800 000', '11800000', '11,8 mill' -> 11800000. Tomt -> null. Ugyldig -> NaN.
+// '6 500 000', '6500000', '6,5 mill' -> 6500000. Tomt -> null. Ugyldig -> NaN.
 function lesBelop(tekst) {
   let s = String(tekst).toLowerCase().replace(/\u00a0/g, " ").replace("kr", "").trim();
   if (!s) return null;
@@ -769,11 +777,11 @@ document.addEventListener("keydown", (e) => {
 window.addEventListener("resize", () => { clearTimeout(window.__rt); window.__rt = setTimeout(oppdater, 150); });
 
 function otpSats(lonn) {
-  if (state.egnedata && lonn > 0) {
-    const s = state.egnedata.innskudd / lonn;
-    $("otpinfo").textContent = `Avtalt årlig innskudd fra ${state.egnedata.navn}: ${kr(state.egnedata.innskudd)} kr = ${(s * 100).toFixed(1).replace(".", ",")} % av lønn`
-      + (state.egnedata.antall > 1 ? ` (summen av ${state.egnedata.antall} avtaler).` : ".");
-    return { sats: s, kilde: "egnedata" };
+  if (state.pensjonsdata && lonn > 0) {
+    const s = state.pensjonsdata.innskudd / lonn;
+    $("otpinfo").textContent = `Avtalt årlig innskudd fra ${state.pensjonsdata.navn}: ${kr(state.pensjonsdata.innskudd)} kr = ${(s * 100).toFixed(1).replace(".", ",")} % av lønn`
+      + (state.pensjonsdata.antall > 1 ? ` (summen av ${state.pensjonsdata.antall} avtaler).` : ".");
+    return { sats: s, kilde: "fil" };
   }
   const raw = $("otp").value.replace(",", ".").trim();
   const n = raw === "" ? 2 : Number(raw);
@@ -811,7 +819,7 @@ function oppdater() {
       $("kjopsteg").hidden = !bb.kjopt; $("salgsteg").hidden = !bb.solgt;
       const feil = [Number.isNaN(kp) && bb.kjopt ? "kjøpesummen" : "", Number.isNaN(sp) && bb.solgt ? "salgssummen" : ""].filter(Boolean);
       $("boliginfo").textContent = feil.length
-        ? `Kunne ikke lese ${feil.join(" og ")}. Skriv beløpet i kroner, for eksempel 11 800 000 eller 11,8 mill. Skatteetatens anslag brukes inntil videre.`
+        ? `Kunne ikke lese ${feil.join(" og ")}. Skriv beløpet i kroner, for eksempel 6 500 000 eller 6,5 mill. Skatteetatens anslag brukes inntil videre.`
         : `Kjøpt: ${bb.kjopt}, solgt: ${bb.solgt}. Pris: ${[bb.kjopt ? "kjøp " + (bb.kjop_kilde === "faktisk" ? "faktisk" : "anslått") : "", bb.solgt ? "salg " + (bb.salg_kilde === "faktisk" ? "faktisk" : "anslått") : ""].filter(Boolean).join(", ")}.`;
     }
     vis({ r, eksempel: state.eksempel || state.filer.length === 0 });
@@ -851,7 +859,7 @@ function vis({ r, feil, eksempel }) {
   if (Math.abs(r.premie) > 0.05) rows.push(["Egen pensjonspremie", "", r.finansiell + r.bolig, r.premie, "pensjon"]);
   rows.push(["Folketrygd", "fra egen trygdeavgift", r.netto, r.folketrygd_egen, "pensjon"],
     ["Folketrygd", "fra arbeidsgiveravgift", r.netto + r.folketrygd_egen, r.folketrygd_ag, "pensjon"],
-    ["Tjenestepensjon", r.otp_kilde === "egnedata" ? "avtalt" : "antatt", r.netto + r.folketrygd, r.otp, "pensjon"],
+    ["Tjenestepensjon", r.otp_kilde === "fil" ? "avtalt" : "antatt", r.netto + r.folketrygd, r.otp, "pensjon"],
     ["Total sparing", "", 0, r.total, "sum"],
     ["Verdiendring", "ikke sparing", r.total, r.verdiendring, "verdi"],
     ["Formuesvekst", "sparing + verdiendring", 0, r.formuesvekst, "sum"]);
@@ -886,7 +894,7 @@ function vis({ r, feil, eksempel }) {
     ["Egen pensjonspremie", r.premie],
     ["Egen sparing", r.netto, "tot"], [`Folketrygd, fra egen trygdeavgift (${(r.ft_egen_sats * 100).toFixed(1).replace(".", ",")} %)`, r.folketrygd_egen],
     [`Folketrygd, fra arbeidsgiveravgift (${((0.181 - r.ft_egen_sats) * 100).toFixed(1).replace(".", ",")} % av 14,1 %)`, r.folketrygd_ag],
-    [r.otp_kilde === "egnedata" ? "Tjenestepensjon (avtalt)" : "Tjenestepensjon (antatt)", r.otp], ["Total sparing", r.total, "tot"],
+    [r.otp_kilde === "fil" ? "Tjenestepensjon (avtalt)" : "Tjenestepensjon (antatt)", r.otp], ["Total sparing", r.total, "tot"],
     ["Verdiendring (ikke sparing)", r.verdiendring], ["  kursendring fond og aksjer", r.detaljer.kursendring, "sub"],
     ["  prisendring bolig", r.detaljer.boligverdi, "sub"], ["Formuesvekst", r.formuesvekst, "tot"]];
   $("tabell").innerHTML = linjer.map(([n, v, cls]) => `<tr class="${cls || ""}"><td>${esc(n.trim())}</td>`
@@ -898,7 +906,7 @@ function vis({ r, feil, eksempel }) {
   const kursord = { snitt: "snittet av start- og sluttkurs", start: "kursen ved årets start", slutt: "kursen ved årets slutt" }[r.kurs];
   $("note").textContent = `Skatt er estimert, ikke Skatteetatens beregning. ${r.boligbytte ? `Sparing i bolig er kjøpt bolig minus solgt bolig minus økning i boliglån, med bytte antatt midt i året. Faktisk pris ganges med eierandelen; uten oppgitt pris anslås den fra Skatteetatens markedsverdi og ${(r.boligbytte.prisvekst * 100).toFixed(1).replace(".", ",")} % årlig prisvekst. Omkostninger som dokumentavgift og megler regnes som forbruk.` : "Sparing i bolig er nedbetalt boliglån."} Prisendring på bolig du eier hele året og kursgevinster er ikke sparing. Fondskjøp er verdsatt til ${kursord}. `
     + `Folketrygd: 18,1 % av pensjonsgivende inntekt opp til ${kr(r.ft_tak)} kr (7,1 × gjennomsnittlig G ${kr(r.G_snitt)} kr for ${r.aar}), delt i ${(r.ft_egen_sats * 100).toFixed(1).replace(".", ",")} % som tilsvarer trygdeavgiften på lønn og ${((0.181 - r.ft_egen_sats) * 100).toFixed(1).replace(".", ",")} % av arbeidsgiveravgiften på 14,1 %. Delingen er en illustrasjon: folketrygden er ikke fondert, og avgiftene finansierer alle ytelsene. `
-    + `Tjenestepensjon: ${r.otp_kilde === "egnedata" ? "avtalt årlig innskudd fra EgneData" : "antatt"}, ${(r.otp_sats * 100).toFixed(1).replace(".", ",")} % av lønn, betalt av arbeidsgiver i tillegg til lønn. `
+    + `Tjenestepensjon: ${r.otp_kilde === "fil" ? "avtalt årlig innskudd fra pensjonsdatafil" : "antatt"}, ${(r.otp_sats * 100).toFixed(1).replace(".", ",")} % av lønn, betalt av arbeidsgiver i tillegg til lønn. `
     + `Verdiendring er kursendring på fond og aksjer og prisendring på bolig; den er ikke sparing og påvirker ikke forbruk.`;
 }
 
