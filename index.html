@@ -1,3 +1,11 @@
+<!doctype html>
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
 <title>Sparefossefall</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -79,9 +87,19 @@ input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; poin
 .wf-name { font-size: 14px; font-weight: 500; padding: 0 10px 0 8px; line-height: 1.2; min-width: 0; overflow-wrap: anywhere; hyphens: auto }
 .wf-name small { display: block; font-size: 12px; color: var(--muted); font-weight: 400 }
 .wf-track { position: relative; height: 40px; margin-right: 8px }
-.wf-bar { position: absolute; top: 7px; height: 26px; border-radius: 4px; min-width: 2px }
-.wf-val { position: absolute; top: 0; height: 40px; display: flex; align-items: center; font: 500 13px var(--mono); white-space: nowrap; padding: 0 6px }
-.wf-val.in { color: var(--onbar) }
+/* Liggende sylinder: skygge over/under, lys stripe, avrundet start og elliptisk lokk i enden */
+.wf-bar { position: absolute; top: 24px; height: 22px; min-width: 2px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 72%, #000) 0%, var(--c) 28%,
+    color-mix(in srgb, var(--c) 55%, #fff) 42%, var(--c) 58%, color-mix(in srgb, var(--c) 70%, #000) 100%);
+  border-radius: 50% 0 0 50% / 50% 0 0 50%; border-top-left-radius: 5px 11px; border-bottom-left-radius: 5px 11px }
+.wf-bar::after { content: ""; position: absolute; top: 0; bottom: 0; right: -5px; width: 10px; border-radius: 50%;
+  background: radial-gradient(ellipse at 40% 40%, color-mix(in srgb, var(--c) 55%, #fff), color-mix(in srgb, var(--c) 85%, #000)) }
+.wf-val { position: absolute; top: 2px; height: 18px; display: flex; gap: 8px; align-items: baseline;
+  font: 600 12.5px/1 var(--mono); color: var(--ink); white-space: nowrap }
+.wf-val b { font-weight: 600 }
+.wf-val small { font-size: 11.5px; font-weight: 500; color: var(--ink) }
+.wf-row { min-height: 54px }
+.wf-row .wf-track { height: 54px }
 .wf-zero { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--muted); opacity: .5 }
 .wf-axis { display: grid; grid-template-columns: minmax(96px, 30%) 1fr; height: 22px; font: 500 11.5px var(--mono); color: var(--muted) }
 .wf-axis .t { position: absolute; transform: translateX(-50%); white-space: nowrap }
@@ -131,9 +149,16 @@ details ul { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size
 .wfv-kol.saving { background: var(--tint) }
 .wfv-kol.first-saving { border-top-left-radius: 8px }
 .wfv-kol.last { border-top-right-radius: 8px }
-.wfv-bar { position: absolute; left: 14%; right: 14%; border-radius: 3px; min-height: 2px }
-.wfv-val { position: absolute; left: -20%; right: -20%; text-align: center; font: 600 13px var(--mono); white-space: nowrap }
-.wfv-val.in { color: var(--onbar); transform: translateY(50%) }
+/* Stående sylinder: skygge til sidene, lys stripe, avrundet bunn og elliptisk lokk på toppen */
+.wfv-bar { position: absolute; left: 16%; right: 16%; min-height: 2px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 72%, #000) 0%, var(--c) 26%,
+    color-mix(in srgb, var(--c) 55%, #fff) 40%, var(--c) 56%, color-mix(in srgb, var(--c) 70%, #000) 100%);
+  border-bottom-left-radius: 50% 6px; border-bottom-right-radius: 50% 6px }
+.wfv-bar::before { content: ""; position: absolute; left: 0; right: 0; top: -6px; height: 12px; border-radius: 50%;
+  background: radial-gradient(ellipse at 45% 40%, color-mix(in srgb, var(--c) 50%, #fff), color-mix(in srgb, var(--c) 85%, #000)) }
+.wfv-val { position: absolute; left: -30%; right: -30%; display: flex; flex-direction: column; align-items: center;
+  font: 600 13px/1.2 var(--mono); color: var(--ink); white-space: nowrap }
+.wfv-val small { font-size: 11.5px; font-weight: 500 }
 .wfv-names { grid-column: 2; display: grid; grid-template-columns: repeat(var(--n), 1fr); padding-top: 8px }
 .wfv-name { font-size: 13px; font-weight: 500; text-align: center; line-height: 1.2; padding: 0 3px; overflow-wrap: anywhere; hyphens: auto }
 .wfv-name small { display: block; font-size: 11.5px; color: var(--muted); font-weight: 400 }@keyframes wf-rad { from { opacity: .35 } }
@@ -910,6 +935,36 @@ function vis({ r, feil, eksempel }) {
     + `Verdiendring er kursendring på fond og aksjer og prisendring på bolig; den er ikke sparing og påvirker ikke forbruk.`;
 }
 
+// Beste boliglånsrente i markedet, til sammenligning i lånetabellen (fotnote *). OPPDATER før bruk – samme tall som
+// BESTE_BOLIGRENTE i Python. Kilde: Finansportalen (Forbrukerrådet), rangert etter effektiv rente med standardvalgene.
+let BESTE_BOLIGRENTE = { kilde: "innebygd", effektiv: 0.0514, nominell: 0.0502, hentet: "11.11.2026", gyldigFra: "22.07.2026", styringsrente: 0.045,
+  vilkar: "flytende standardlån, landsdekkende, uten krav om medlemskap eller andre produkter, inntil 75 % belåning",
+  forutsetninger: "lån 3 mill. kr, boligverdi 4 mill. kr, 25 års nedbetaling, 30 år gammel låntaker",
+  url: "https://www.forbrukerradet.no/finansportalen/bank/lan/boliglan" };
+
+// Hent oppdatert rente fra beste_boligrente.json, som en daglig GitHub-jobb lagrer i repoet. Prøver filen ved siden av
+// siden og (på github.io) samme fil rett fra repoet; den nyeste vinner. Uten fil brukes innebygd verdi over.
+async function hentBoligrente() {
+  const kilder = ["beste_boligrente.json"];
+  const m = location.hostname.match(/^([^.]+)\.github\.io$/);
+  const repo = location.pathname.split("/").filter(Boolean)[0];
+  if (m && repo) kilder.push(`https://raw.githubusercontent.com/${m[1]}/${repo}/main/beste_boligrente.json`);
+  const svar = await Promise.all(kilder.map(async (u) => {
+    try {
+      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 5000);
+      const r = await fetch(u, { cache: "no-store", signal: ctl.signal }); clearTimeout(t);
+      if (!r.ok) return null;
+      const d = await r.json();
+      return typeof d.effektiv === "number" && d.effektiv > 0.005 && d.effektiv < 0.2 && typeof d.nominell === "number" && d.hentet_iso ? d : null;
+    } catch (e) { return null; }
+  }));
+  const beste = svar.filter(Boolean).sort((a, b) => String(b.hentet_iso).localeCompare(String(a.hentet_iso)))[0];
+  if (!beste) return;
+  BESTE_BOLIGRENTE = { ...BESTE_BOLIGRENTE, kilde: "automatisk", effektiv: beste.effektiv, nominell: beste.nominell, hentet: beste.hentet,
+    gyldigFra: beste.gyldig_fra || BESTE_BOLIGRENTE.gyldigFra, styringsrente: beste.styringsrente ?? BESTE_BOLIGRENTE.styringsrente };
+  oppdater();
+}
+
 function prisord(kilde, ord) {
   return kilde === "faktisk" ? `faktisk ${ord}` : kilde === "anslått" ? "anslått, midt i året" : "ingen";
 }
@@ -921,7 +976,7 @@ function visLaan(r, b) {
   let h = `<tr><th>Lån</th>` + (b ? `<th>Bank</th><th class="num">Saldo i fjor</th><th class="num">Saldo i år</th><th class="num">Renter i år</th>` : "")
     + `<th class="num">Rente</th><th class="num">År igjen</th><th>Merknad</th></tr>`;
   for (const l of L) {
-    h += `<tr><td>${esc(l.navn)}</td>`
+    h += `<tr><td>${esc(l.navn)}${l.typ === "bolig" ? " *)" : ""}</td>`
       + (b ? `<td class="st">${esc(l.bank || "")}</td><td class="num">${kr(l.B0)}</td><td class="num">${kr(l.B1)}</td><td class="num">${kr(l.renter)}</td>` : "")
       + `<td class="num">${l.rente !== null ? pst(l.rente) : "–"}</td>`
       + `<td class="num">${l.aar !== null ? l.aar.toFixed(1).replace(".", ",") : "–"}</td>`
@@ -930,15 +985,26 @@ function visLaan(r, b) {
   $("laan").innerHTML = h;
   $("laan").classList.toggle("wide", b);
   $("laanmerk").innerHTML = `<p class="foot">Egen andel av hvert lån. Rente = årets renter i prosent av fjorårets saldo. År igjen er regnet som annuitetslån med årets rente og årets betaling (renter + avdrag), og forutsetter at begge gjelder videre. Et refinansiert lån har ofte ny løpetid, og over 20 % nedbetaling på ett år kan være ekstraordinært; da blir år igjen for kort.</p>`;
+  if (L.some((l) => l.typ === "bolig")) {
+    const b = BESTE_BOLIGRENTE, pst = (x) => (x * 100).toFixed(2).replace(".", ",") + " %";
+    $("laanmerk").insertAdjacentHTML("beforeend", `<p class="foot">*) Beste boliglånsrente på Finansportalen (Forbrukerrådet) per ${b.hentet}${b.kilde === "automatisk" ? " (hentet automatisk)" : " (innebygd verdi – kunne ikke hente oppdatert rente)"}: <b>${pst(b.effektiv)} effektiv</b> (${pst(b.nominell)} nominell), ${b.vilkar}. Forutsetninger: ${b.forutsetninger}. Renten gjelder fra ${b.gyldigFra}; styringsrenten er ${pst(b.styringsrente)}. <a href="${b.url}" target="_blank" rel="noopener">Sjekk dagens rente på Finansportalen</a>.</p>`);
+  }
 }
 
-// Liggende stolper (smale skjermer)
+// Tekst over/ved hver stolpe: kroner + prosent i kronevisning, bare prosent i prosentvisning (anonym)
+function etikett(h, typ, b, k) {
+  const sgn = typ !== "sum";
+  const pst = fmt(h, false, sgn);
+  return b ? `<b>${fmt(h * k, true, sgn)}</b><small>${pst}</small>` : `<b>${pst}</b>`;
+}
+
+// Liggende sylindre (smale skjermer)
 function tegnLiggende(rows, color, b, k, s, firstIdx, klasser) {
   let lo = 0, hi = 0;
   for (const [, , base, h] of rows) { lo = Math.min(lo, base, base + h); hi = Math.max(hi, base, base + h); }
   const pad = (hi - lo) * 0.02; lo -= lo < 0 ? pad : 0; hi += pad;
   const X = (v) => ((v - lo) / (hi - lo)) * 100;
-  const step = niceStep(hi - lo, window.innerWidth < 560 ? 3 : 5);
+  const step = b ? niceStep((hi - lo) * k, window.innerWidth < 560 ? 3 : 5) / k : niceStep(hi - lo, window.innerWidth < 560 ? 3 : 5);
   let ticks = "";
   for (let t = Math.ceil(lo / step) * step; t <= hi + 1e-9; t += step) {
     ticks += `<span class="t" style="left:${X(t)}%">${b ? kortKr(t * k) : Math.round(t) + " %"}</span>`;
@@ -946,45 +1012,39 @@ function tegnLiggende(rows, color, b, k, s, firstIdx, klasser) {
   let html = `<div class="wf-axis"><span></span><div style="position:relative;margin-right:8px">${ticks}</div></div>`;
   rows.forEach(([navn, under, base, h, typ, first], i) => {
     const y0 = Math.min(base, base + h), x0 = X(y0), w = X(y0 + Math.abs(h)) - x0;
-    const text = fmt(s(h), b, typ !== "sum");
-    const inni = w > (b ? 40 : 26);
-    let pos;
-    if (inni) pos = `left:${x0}%;width:${w}%;justify-content:center`;
-    else if (x0 + w < 72) pos = `left:${x0 + w}%`;
-    else pos = `right:${100 - x0}%`;
-    const fra = typ === "sum" ? "left" : h < 0 ? "right" : "left";   // stolpen vokser fra der forrige sluttet
-    html += `<div class="wf-row${i >= firstIdx ? " saving" : ""}${first ? " first-saving" : ""}${klasser(i)}">
+    // Teksten står etter stolpens ende, eller foran starten når stolpen når langt mot høyre
+    // Teksten står på linjen over sylinderen: fra stolpens start, eller høyrejustert mot enden når stolpen når langt til høyre
+    const pos = x0 + w >= 58 ? `right:${Math.max(0, 100 - (x0 + w))}%;justify-content:flex-end` : `left:${x0}%`;
+    const fra = typ === "sum" ? "left" : h < 0 ? "right" : "left";
+    html += `<div class="wf-row${b ? " to" : ""}${i >= firstIdx ? " saving" : ""}${first ? " first-saving" : ""}${klasser(i)}">
       <div class="wf-name">${navn}${under ? `<small>${under}</small>` : ""}</div>
       <div class="wf-track"><span class="wf-zero" style="left:${X(0)}%"></span>
-        <span class="wf-bar" style="left:${x0}%;width:${w}%;background:${color[typ]};transform-origin:${fra} center"></span>
-        <span class="wf-val${inni ? " in" : ""}" style="${pos}">${fmt(s(h), b, typ !== "sum")}</span></div></div>`;
+        <span class="wf-bar" style="left:${x0}%;width:${w}%;--c:${color[typ]};transform-origin:${fra} center"></span>
+        <span class="wf-val" style="${pos}">${etikett(h, typ, b, k)}</span></div></div>`;
   });
   return html;
 }
 
-// Stående fossefall (brede skjermer), som grafen fra Python-programmet
+// Stående sylindre (brede skjermer), som grafen fra Python-programmet
 function tegnStaaende(rows, color, b, k, s, firstIdx, klasser) {
   let lo = 0, hi = 0;
   for (const [, , base, h] of rows) { lo = Math.min(lo, base, base + h); hi = Math.max(hi, base, base + h); }
-  const span = hi - lo; hi += span * 0.08; lo -= lo < 0 ? span * 0.04 : 0;
+  const span = hi - lo; hi += span * (b ? 0.16 : 0.10); lo -= lo < 0 ? span * 0.04 : 0;   // plass til tekst over stolpene
   const Y = (v) => ((v - lo) / (hi - lo)) * 100;           // prosent fra bunnen
-  const step = niceStep(hi - lo, 6);
+  const step = b ? niceStep((hi - lo) * k, 6) / k : niceStep(hi - lo, 6);
   let akse = "", grid = "";
   for (let t = Math.ceil(lo / step) * step; t <= hi + 1e-9; t += step) {
     akse += `<span class="t" style="bottom:${Y(t)}%">${b ? kortKr(t * k) : Math.round(t) + " %"}</span>`;
     grid += `<span class="wfv-grid${Math.abs(t) < 1e-9 ? " null" : ""}" style="bottom:${Y(t)}%"></span>`;
   }
   if (lo < 0) grid += `<span class="wfv-grid null" style="bottom:${Y(0)}%"></span>`;
-  const plotH = $("wf").clientWidth ? Math.min(Math.max(320, window.innerHeight * 0.56), 600) : 400;
   let kol = "", navn = "";
   rows.forEach(([n, under, base, h, typ, first], i) => {
     const y0 = Math.min(base, base + h), bunn = Y(y0), hoyde = Y(y0 + Math.abs(h)) - bunn;
-    const inni = (hoyde / 100) * plotH > 30;
     const fra = typ === "sum" ? "bottom" : h < 0 ? "top" : "bottom";
-    const val = inni ? `<span class="wfv-val in" style="bottom:${bunn + hoyde / 2}%">${fmt(s(h), b, typ !== "sum")}</span>`
-                     : `<span class="wfv-val" style="bottom:calc(${bunn + hoyde}% + 4px)">${fmt(s(h), b, typ !== "sum")}</span>`;
     kol += `<div class="wfv-kol${i >= firstIdx ? " saving" : ""}${first ? " first-saving" : ""}${i === rows.length - 1 ? " last" : ""}${klasser(i)}">
-      <span class="wfv-bar" style="bottom:${bunn}%;height:${hoyde}%;background:${color[typ]};transform-origin:center ${fra}"></span>${val}</div>`;
+      <span class="wfv-bar" style="bottom:${bunn}%;height:${hoyde}%;--c:${color[typ]};transform-origin:center ${fra}"></span>
+      <span class="wfv-val" style="bottom:calc(${bunn + hoyde}% + 9px)">${etikett(h, typ, b, k)}</span></div>`;
     navn += `<div class="wfv-name${klasser(i)}">${n}${under ? `<small>${under}</small>` : ""}</div>`;
   });
   return `<div class="wfv" style="--n:${rows.length}"><div class="wfv-akse">${akse}</div>
@@ -1004,4 +1064,8 @@ function kortKr(x) {
 }
 
 oppdater();
+hentBoligrente();
 </script>
+
+</body>
+</html>
