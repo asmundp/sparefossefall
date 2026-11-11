@@ -296,7 +296,13 @@ const FT_SATS = 0.181;
 const FT_TAK_G = 7.1;
 const ARBEIDSGIVERAVGIFT = 0.141;   // sone 1; brukes bare i forklarende tekst
 const SKATTEFRI = ["UTGGJ", "TFRI"];
-const BOLIGPRISVEKST = 0.03;   // antatt årlig boligprisvekst; brukes bare til kjøps-/salgspris midt i året
+const BOLIGPRISVEKST = 0.03;
+// Rentetabell og kontroller – samme verdier som i sparefossefall.py
+const TABELL_LAN = [1500000, 3000000, 5000000, 8000000, 12000000];
+const TABELL_BELANING = [0.40, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90];
+const UNGDOMSGRENSE = 50;
+const KONTROLL = { prisavvik: 0.15, maks_belaning: 0.90, forbruk_andel: 1.2, rente_min: 0.01, rente_maks: 0.12,
+  otp_min: 0.02, otp_maks: 0.25, verdiendring_andel: 1.0 };   // antatt årlig boligprisvekst; brukes bare til kjøps-/salgspris midt i året
 
 class Feil extends Error {}
 
@@ -344,6 +350,10 @@ function laanetype(k, g) {
   if (navn.includes("BOLIGKREDITT") || andel(k) < 1 || g >= 500000) return "bolig";
   return "annen";
 }
+// Sant når lånet er regnet som boliglån bare fordi det er stort (kan være billån eller annet)
+function boligBarePaStorrelse(k, g) {
+  return laanetype(k, g) === "bolig" && !String(k.bankensNavn || "").toUpperCase().includes("BOLIGKREDITT") && andel(k) >= 1;
+}
 
 // Nøkkel som kobler samme verdipapir på tvers av år: ISIN, ellers navn, ellers id uten prefikset "UV-"
 // (Skatteetaten kan endre id fra ett år til det neste). Samme regler som papirnokkel() i Python.
@@ -355,7 +365,7 @@ function papirnokkel(isin, navn, id, prefiks = "") {
 
 function beholdning(v) {
   const b = { innskudd: 0, gjeld: new Map(), papirer: new Map(), renter_betalt: 0, renter_mottatt: 0,
-    renter_per_konto: new Map(), banknavn: new Map() };
+    renter_per_konto: new Map(), banknavn: new Map(), gjeld_hel: new Map(), bolig_storrelse: [] };
   arr(v.konto).forEach((k, nr) => {
     const kid = k.id || `k${nr}`;
     b.innskudd += egen(k, "andelAvInnskudd", "innskudd");
@@ -365,7 +375,12 @@ function beholdning(v) {
     const g = egen(k, "andelAvGjeld", "gjeld");
     b.banknavn.set(kid, String(k.bankensNavn || "").trim());
     if (rente > 0) b.renter_per_konto.set(kid, [laanetype(k, g), rente]);
-    if (g > 0) b.gjeld.set(kid, [laanetype(k, g), g]);
+    if (g > 0) {
+      b.gjeld.set(kid, [laanetype(k, g), g]);
+      // Hele lånet (ikke bare egen andel) – det er det banken priser
+      b.gjeld_hel.set(kid, has(k, "gjeld") ? num(k.gjeld) : (andel(k) ? g / andel(k) : g));
+      if (boligBarePaStorrelse(k, g)) b.bolig_storrelse.push(kid);
+    }
   });
   const papir = (nokkel, antall, verdi, notert = true) => {
     if (b.papirer.has(nokkel)) {
@@ -629,8 +644,83 @@ function laananalyse(b0, b1, boligbytte = false) {
   return ut;
 }
 
+// ---------------------------------------------------------------------------
+// Boliglånsprofil, punkt i rentetabellen og beste rente for alder – samme regler som i Python
+// ---------------------------------------------------------------------------
+function boliglanprofil(b1, e0, e1, kjopspris = null) {
+  let lan = 0;
+  for (const [i, [t]] of b1.gjeld) if (t === "bolig") lan += b1.gjeld_hel.get(i);
+  const kjopt = [...e1.keys()].filter((k) => !e0.has(k));
+  let verdi, kilde;
+  if (kjopt.length && kjopspris) {
+    verdi = sum([...e1].filter(([k]) => !kjopt.includes(k)), ([, [x, a]]) => x / a) + kjopspris;
+    kilde = "faktisk kjøpesum";
+  } else {
+    verdi = sum([...e1.values()], ([x, a]) => x / a);
+    kilde = "Skatteetatens markedsverdi";
+  }
+  if (lan <= 0 || verdi <= 0) return null;
+  return { lan, verdi, belaning: lan / verdi, verdikilde: kilde };
+}
+function rutenettpunkt(lan, belaning) {
+  const trinn = TABELL_BELANING.filter((t) => t >= belaning - 1e-9);
+  if (!trinn.length || lan <= 0) return null;
+  let nest = TABELL_LAN[0];
+  for (const x of TABELL_LAN) if (Math.abs(Math.log(lan / x)) < Math.abs(Math.log(lan / nest))) nest = x;
+  return { lan: nest, belaning: trinn[0] };
+}
+const cellenokkel = (pk) => `${pk.lan}|${pk.belaning.toFixed(2)}`;
+function besteForAlder(produkter, alder) {
+  const passer = (p) => {
+    const fra = p.alder_fra || 0, til = p.alder_til || 200;
+    return alder ? fra <= alder && alder <= til : til >= UNGDOMSGRENSE;
+  };
+  const aktuelle = (produkter || []).filter(passer);
+  return aktuelle.length ? aktuelle.reduce((a, b) => (b.e < a.e ? b : a)) : null;
+}
+
+// Kontroller: verdier som kan gjøre beregningen misvisende (samme koder og grenser som i Python)
+function kontrollerData(r0) {
+  const k = KONTROLL, ut = [];
+  if (r0.kjop_estimat && r0.kjopspris) { const a = r0.kjopspris / r0.kjop_estimat - 1; if (Math.abs(a) > k.prisavvik) ut.push({ kode: "kjop_avvik", verdi: a }); }
+  if (r0.salg_estimat && r0.salgspris) { const a = r0.salgspris / r0.salg_estimat - 1; if (Math.abs(a) > k.prisavvik) ut.push({ kode: "salg_avvik", verdi: a }); }
+  if (r0.antall_kjopt && !r0.kjopspris) ut.push({ kode: "kjop_mangler", verdi: null });
+  if (r0.antall_solgt && !r0.salgspris) ut.push({ kode: "salg_mangler", verdi: null });
+  if (r0.kjopspris && !r0.antall_kjopt) ut.push({ kode: "kjop_ubrukt", verdi: null });
+  if (r0.salgspris && !r0.antall_solgt) ut.push({ kode: "salg_ubrukt", verdi: null });
+  if (r0.profil && r0.profil.belaning > k.maks_belaning) ut.push({ kode: "hoy_belaning", verdi: r0.profil.belaning });
+  if (r0.disponibel > 0 && r0.forbruk / r0.disponibel > k.forbruk_andel) ut.push({ kode: "hoyt_forbruk", verdi: r0.forbruk / r0.disponibel });
+  for (const rente of r0.boligrenter) if (!(k.rente_min <= rente && rente <= k.rente_maks)) ut.push({ kode: "urimelig_rente", verdi: rente });
+  if (r0.bolig_storrelse.length) ut.push({ kode: "lan_storrelse", verdi: r0.bolig_storrelse });
+  if (r0.ukoblede_papirer.length) ut.push({ kode: "ukoblet_papir", verdi: r0.ukoblede_papirer });
+  if (r0.otp_sats > k.otp_maks || r0.otp_sats < k.otp_min) ut.push({ kode: "otp_sats", verdi: r0.otp_sats });
+  if (r0.alder_ugyldig !== null) ut.push({ kode: "alder_ugyldig", verdi: r0.alder_ugyldig });
+  if (r0.lonn > 0 && Math.abs(r0.verdiendring) > k.verdiendring_andel * r0.lonn) ut.push({ kode: "stor_verdiendring", verdi: r0.verdiendring / r0.lonn });
+  return ut;
+}
+function kontrolltekst(k) {
+  const v = k.verdi, p1 = (x) => (x * 100).toFixed(1).replace(".", ",") + " %";
+  switch (k.kode) {
+    case "kjop_avvik": return `Oppgitt kjøpesum avviker ${p1(Math.abs(v))} fra Skatteetatens markedsverdi. Kjøpesummen brukes; sjekk at den er riktig og uten fellesgjeld og omkostninger.`;
+    case "salg_avvik": return `Oppgitt salgssum avviker ${p1(Math.abs(v))} fra Skatteetatens markedsverdi. Salgssummen brukes; sjekk at den er riktig og uten fellesgjeld og omkostninger.`;
+    case "kjop_mangler": return "Bolig kjøpt i år, men kjøpesum er ikke oppgitt. Skatteetatens anslag kan avvike med millioner, og avviket slår rett inn i sparing i bolig og forbruk.";
+    case "salg_mangler": return "Bolig solgt i år, men salgssum er ikke oppgitt. Skatteetatens anslag kan avvike med millioner, og avviket slår rett inn i sparing i bolig og forbruk.";
+    case "kjop_ubrukt": return "Kjøpesum er oppgitt, men skattemeldingene viser ingen kjøpt bolig. Kjøpesummen brukes ikke.";
+    case "salg_ubrukt": return "Salgssum er oppgitt, men skattemeldingene viser ingen solgt bolig. Salgssummen brukes ikke.";
+    case "hoy_belaning": return `Belåningsgraden blir ${p1(v)}, over 90 %. Sjekk boligverdien og boliglånene; renten kan ikke sammenlignes.`;
+    case "hoyt_forbruk": return `Forbruket er ${p1(v)} av disponibel inntekt. Det skyldes ofte feil boligpris, lån til bil eller oppussing, eller penger flyttet til partner.`;
+    case "urimelig_rente": return `Boliglånsrenten beregnes til ${p1(v)}. Det er urimelig; renter kan være ført på feil lån, eller lånet kan være flyttet i løpet av året.`;
+    case "lan_storrelse": return `${v.length} lån er regnet som boliglån bare fordi det er over 500 000 kr. Sjekk at det ikke er billån eller annet lån.`;
+    case "ukoblet_papir": return `${v.length} verdipapir uten ISIN og navn finnes bare i ett av årene og kan være feilkoblet. Kjøp eller salg kan da være feil.`;
+    case "otp_sats": return `Tjenestepensjon på ${p1(v)} av lønn er utenfor det vanlige (2–25 %). Sjekk satsen eller pensjonsdatafilen.`;
+    case "alder_ugyldig": return `Alderen i pensjonsdatafilen (${v}) er ikke gyldig og brukes ikke.`;
+    case "stor_verdiendring": return `Verdiendringen er ${p1(Math.abs(v))} av årslønnen. Den bygger på markedsanslag og dominerer formuesveksten.`;
+    default: return k.kode;
+  }
+}
+
 // filA, filB: { aar, v } fra les(). Rekkefølgen spiller ingen rolle.
-function beregn(filA, filB, { kurs = "snitt", otp_sats = 0.02, otp_kilde = "antatt", ft_tak = null, boligprisvekst = BOLIGPRISVEKST, kjopspris = null, salgspris = null } = {}) {
+function beregn(filA, filB, { kurs = "snitt", otp_sats = 0.02, otp_kilde = "antatt", ft_tak = null, boligprisvekst = BOLIGPRISVEKST, kjopspris = null, salgspris = null, alder = null } = {}) {
   const varsler = [];
   if (filA.aar === filB.aar) throw new Feil(`Begge filene gjelder inntektsåret ${filA.aar}. Velg ett år og året før.`);
   const [ny, gml] = filA.aar > filB.aar ? [filA, filB] : [filB, filA];
@@ -674,11 +764,26 @@ function beregn(filA, filB, { kurs = "snitt", otp_sats = 0.02, otp_kilde = "anta
   const folketrygd_ag = folketrygd - folketrygd_egen;
   const otp = otp_sats * ink.lonn;
 
-  if (bytte && (bytte.kjop_kilde === "anslått" || bytte.salg_kilde === "anslått")) varsler.push({ niva: "merk", id: "boligpris",
-    tekst: `Boligbytte registrert (${bytte.antall_kjopt} kjøpt, ${bytte.antall_solgt} solgt), antatt midt i året. `
-    + "Prisen er anslått fra Skatteetatens markedsverdi. Avviker faktisk pris, slår avviket rett inn i sparing i bolig og forbruk. Skriv inn faktisk pris under Boligbytte." });
   if (forbruk < 0) varsler.push({ niva: "advarsel", tekst: "Forbruket blir negativt. Det er trolig kommet inn penger som ikke står i skattemeldingen (gave, arv, salg eller partner)." });
   if (ink.pensjon_mottatt > 0) varsler.push({ niva: "merk", tekst: "Personen mottar pensjon. Skattefradraget for pensjonsinntekt er ikke med, så skatten kan være overvurdert." });
+
+  // Boliglånsprofil og kontroller
+  const e0 = boliger(gml.v), e1 = boliger(ny.v);
+  const profil = boliglanprofil(b1, e0, e1, kjopspris);
+  const halv = Math.pow(1 + boligprisvekst, 0.5);
+  const kjopte = [...e1.keys()].filter((k) => !e0.has(k)), solgte = [...e0.keys()].filter((k) => !e1.has(k));
+  const laan = laananalyse(b0, b1, Boolean(bytte));
+  const alder_ugyldig = alder !== null && alder !== undefined && !(alder >= 16 && alder <= 100) ? alder : null;
+  const alleNokler = new Set([...b0.papirer.keys(), ...b1.papirer.keys()]);
+  const ukoblede = [...alleNokler].filter((k) => (b0.papirer.has(k) !== b1.papirer.has(k)) && /(^|:)ID:/.test(String(k))).sort();
+  const kontroller = kontrollerData({
+    kjopspris, salgspris, antall_kjopt: kjopte.length, antall_solgt: solgte.length,
+    kjop_estimat: kjopte.length ? sum(kjopte, (k) => e1.get(k)[0] / e1.get(k)[1]) / halv : null,
+    salg_estimat: solgte.length ? sum(solgte, (k) => e0.get(k)[0] / e0.get(k)[1]) * halv : null,
+    profil, disponibel: ink.lonn + ink.annen_inntekt - ink.skatt - b1.renter_betalt, forbruk,
+    boligrenter: laan.filter((l) => l.navn === "Boliglån" && l.rente !== null).map((l) => l.rente),
+    bolig_storrelse: b1.bolig_storrelse, ukoblede_papirer: ukoblede, otp_sats, alder_ugyldig,
+    lonn: ink.lonn, verdiendring: kursendring + boligverdi });
 
   const L = ink.lonn;
   const pst = (x) => (100 * x) / L;
@@ -690,7 +795,9 @@ function beregn(filA, filB, { kurs = "snitt", otp_sats = 0.02, otp_kilde = "anta
     verdiendring: pst(kursendring + boligverdi), formuesvekst: pst(nettosparing + folketrygd + otp + kursendring + boligverdi),
     detaljer: { fond: pst(fond), bank: pst(bank), annen_gjeld: pst(gj.annen), nye_laan: pst(gj.nye),
       kursendring: pst(kursendring), boligverdi: pst(boligverdi) },
-    pensjonist: ink.pensjon_mottatt > 0, laan: laananalyse(b0, b1, Boolean(bytte)),
+    pensjonist: ink.pensjon_mottatt > 0, laan, boligprofil: profil,
+    rentepunkt: profil ? rutenettpunkt(profil.lan, profil.belaning) : null,
+    alder: alder_ugyldig === null ? alder : null, kontroller,
     boligbytte: bytte ? { kjop: pst(bytte.kjop), salg: -pst(bytte.salg), gjeld: -pst(bytte.gjeldsokning),
       kjopt: bytte.antall_kjopt, solgt: bytte.antall_solgt, prisvekst: boligprisvekst,
       kjop_kilde: bytte.kjop_kilde, salg_kilde: bytte.salg_kilde } : null,
@@ -710,15 +817,16 @@ function finnNokkel(data, nokkel) {
 function innskuddFraPensjonsdata(tekst, navn) {
   const data = parseJson(tekst, navn);
   const funn = finnNokkel(data, "sumAvtaltAarligInnskudd").filter((x) => x > 0);
-  if (!funn.length) throw new Feil(`Fant ikke avtalt årlig innskudd (sumAvtaltAarligInnskudd) i ${navn}.`);
-  return { innskudd: funn.reduce((a, b) => a + b, 0), antall: funn.length };
+  const alder = finnNokkel(data, "alder").find((x) => x > 0) ?? null;
+  if (!funn.length && alder === null) throw new Feil(`Fant verken avtalt årlig innskudd (sumAvtaltAarligInnskudd) eller alder i ${navn}.`);
+  return { innskudd: funn.length ? funn.reduce((a, b) => a + b, 0) : null, antall: funn.length, alder };
 }
 
 function kr(x) {
   return Math.round(x).toLocaleString("nb-NO").replace(/\s/g, " ");
 }
 
-if (typeof module !== "undefined") module.exports = { les, beregn, innskuddFraPensjonsdata, lonnFra, kr, Feil, PARAM };
+if (typeof module !== "undefined") module.exports = { les, beregn, innskuddFraPensjonsdata, lonnFra, kr, Feil, PARAM, kontrolltekst, besteForAlder, cellenokkel, rutenettpunkt };
 
 
 const EKSEMPEL = [{"visningsdata": {"inntektsaar": "2024", "arbeidsgiver": [{"samledeYtelserFraArbeidsgiverPerBehandlingsart": [{"behandlingsart": "LONN", "beloep": {"beloep": "820000"}}, {"behandlingsart": "FRI", "beloep": "6000"}, {"behandlingsart": "UTGGJ", "beloep": "3000"}]}], "konto": [{"id": "k1", "bankensNavn": "Bank A", "innskudd": "210000", "opptjenteRenter": "4200,50"}, {"id": "b1", "bankensNavn": "Bank B", "gjeld": "3400000", "paaloepteRenter": "98000", "prosentandelAvGjeldInnskuddOgRente": "50", "andelAvGjeld": "1700000.0", "andelAvPaaloepteRenter": "49000"}, {"id": "s1", "bankensNavn": "Studielån", "organisasjonsnummer": "960885406", "gjeld": "160000", "paaloepteRenter": "8000"}], "verdipapirfond": [{"isinnummer": "XX0000000001", "antallAndeler": "900", "verdiFoerVerdsettingsrabattForAndelIAksjedel": "270000", "verdiFoerVerdsettingsrabattForAndelIRentedel": "0", "skattepliktigGevinstVedRealisasjonAvAndelIAksjedel": "0"}], "aksjesparekonto": [{"verdiFoerVerdsettingsrabattForAksjedel": "72000", "finansprodukt": [{"isinnummer": "XX0000000002", "antall": "40"}]}], "aksjeIAksjonaerregisteret": [{"isinnummer": "XX0000000003", "antallAksjer": "300", "verdiFoerVerdsettingsrabattForAksje": "66000", "skattepliktigUtbytte": "3500"}], "virtuellEiendel": [{"navn": "Kryptovaluta A", "antall": "0.05", "formuesverdiforVirtuellEiendel": "30000"}], "minstefradragOgKostnaderKnyttetTilArbeidOgAnnenInntekt": [{"minstefradragIInntekt": "92000"}], "pensjonspremieIArbeidsforhold": [{"fradragForPensjonspremieTilPensjonsordningIArbeidsforholdFradragsberettigetBeloep": "12000"}], "fastEiendom": [{"sergEiendomsidentifikator": "eiendom-1", "fastEiendomSomFormuesobjekt": [{"formuesverdiForFormuesandel": "1450000", "verdiFoerVerdsettingsrabattForFormuesandel": "5800000"}]}], "kjoeretoey": [{"formuesverdiForFormuesandelForKjoeretoey": "180000"}]}}, {"visningsdata": {"inntektsaar": "2025", "arbeidsgiver": [{"samledeYtelserFraArbeidsgiverPerBehandlingsart": [{"behandlingsart": "LONN", "beloep": {"beloep": "865000"}}, {"behandlingsart": "FRI", "beloep": "6000"}, {"behandlingsart": "UTGGJ", "beloep": "3000"}]}], "konto": [{"id": "k1", "bankensNavn": "Bank A", "innskudd": "265000", "opptjenteRenter": "4200,50"}, {"id": "b2", "bankensNavn": "Bank B", "gjeld": "3280000", "paaloepteRenter": "98000", "prosentandelAvGjeldInnskuddOgRente": "50", "andelAvGjeld": "1640000.0", "andelAvPaaloepteRenter": "49000"}, {"id": "s1", "bankensNavn": "Studielån", "organisasjonsnummer": "960885406", "gjeld": "142000", "paaloepteRenter": "8000"}, {"id": "c1", "bankensNavn": "Bank C", "gjeld": "18000", "paaloepteRenter": "2600"}], "verdipapirfond": [{"isinnummer": "XX0000000001", "antallAndeler": "1150", "verdiFoerVerdsettingsrabattForAndelIAksjedel": "380000", "verdiFoerVerdsettingsrabattForAndelIRentedel": "0", "skattepliktigGevinstVedRealisasjonAvAndelIAksjedel": "0"}], "aksjesparekonto": [{"verdiFoerVerdsettingsrabattForAksjedel": "118000", "finansprodukt": [{"isinnummer": "XX0000000002", "antall": "55"}]}], "aksjeIAksjonaerregisteret": [{"isinnummer": "XX0000000003", "antallAksjer": "300", "verdiFoerVerdsettingsrabattForAksje": "72000", "skattepliktigUtbytte": "3500"}], "virtuellEiendel": [{"navn": "Kryptovaluta A", "antall": "0.05", "formuesverdiforVirtuellEiendel": "48000"}], "minstefradragOgKostnaderKnyttetTilArbeidOgAnnenInntekt": [{"minstefradragIInntekt": "92000"}], "pensjonspremieIArbeidsforhold": [{"fradragForPensjonspremieTilPensjonsordningIArbeidsforholdFradragsberettigetBeloep": "12000"}], "fastEiendom": [{"sergEiendomsidentifikator": "eiendom-1", "fastEiendomSomFormuesobjekt": [{"formuesverdiForFormuesandel": "1500000", "verdiFoerVerdsettingsrabattForFormuesandel": "6000000"}]}], "kjoeretoey": [{"formuesverdiForFormuesandelForKjoeretoey": "180000"}]}}];
@@ -802,16 +910,18 @@ document.addEventListener("keydown", (e) => {
 window.addEventListener("resize", () => { clearTimeout(window.__rt); window.__rt = setTimeout(oppdater, 150); });
 
 function otpSats(lonn) {
-  if (state.pensjonsdata && lonn > 0) {
-    const s = state.pensjonsdata.innskudd / lonn;
-    $("otpinfo").textContent = `Avtalt årlig innskudd fra ${state.pensjonsdata.navn}: ${kr(state.pensjonsdata.innskudd)} kr = ${(s * 100).toFixed(1).replace(".", ",")} % av lønn`
-      + (state.pensjonsdata.antall > 1 ? ` (summen av ${state.pensjonsdata.antall} avtaler).` : ".");
+  const pd = state.pensjonsdata;
+  const alderTekst = pd && pd.alder ? ` Alder: ${pd.alder} år.` : "";
+  if (pd && pd.innskudd && lonn > 0) {
+    const s = pd.innskudd / lonn;
+    $("otpinfo").textContent = `Avtalt årlig innskudd fra ${pd.navn}: ${kr(pd.innskudd)} kr = ${(s * 100).toFixed(1).replace(".", ",")} % av lønn`
+      + (pd.antall > 1 ? ` (summen av ${pd.antall} avtaler).` : ".") + alderTekst;
     return { sats: s, kilde: "fil" };
   }
   const raw = $("otp").value.replace(",", ".").trim();
   const n = raw === "" ? 2 : Number(raw);
   if (!Number.isFinite(n) || n < 0 || n > 30) { $("otpinfo").textContent = "Skriv satsen som et tall, for eksempel 2 eller 5,6."; return { sats: 0.02, kilde: "antatt" }; }
-  $("otpinfo").textContent = "Minstekravet er 2 %, snittet rundt 4 %.";
+  $("otpinfo").textContent = "Minstekravet er 2 %, snittet rundt 4 %." + alderTekst;
   return { sats: n / 100, kilde: "antatt" };
 }
 
@@ -837,7 +947,8 @@ function oppdater() {
     const prisvekst = Number.isFinite(pvRaw) && pvRaw > -50 && pvRaw < 50 ? pvRaw / 100 : 0.03;
     const kp = lesBelop($("kjopspris").value), sp = lesBelop($("salgspris").value);
     const r = beregn(A, B, { kurs: $("kurs").value, otp_sats: sats, otp_kilde: kilde, boligprisvekst: prisvekst,
-      kjopspris: Number.isNaN(kp) ? null : kp, salgspris: Number.isNaN(sp) ? null : sp });
+      kjopspris: Number.isNaN(kp) ? null : kp, salgspris: Number.isNaN(sp) ? null : sp,
+      alder: state.pensjonsdata && state.pensjonsdata.alder ? state.pensjonsdata.alder : null });
     const bb = r.boligbytte;
     $("boligsteg").hidden = !bb;
     if (bb) {
@@ -857,6 +968,7 @@ function vis({ r, feil, eksempel }) {
   const msgs = [];
   if (feil) msgs.push(`<div class="msg feil"><strong>Kan ikke beregne.</strong> ${esc(feil)}</div>`);
   if (eksempel) msgs.push(`<div class="msg eksempel"><strong>Eksempel med fiktive tall.</strong> Velg dine egne skattemeldinger over for å se ditt fossefall.</div>`);
+  if (r) for (const k of r.kontroller || []) msgs.push(`<div class="msg advarsel"><strong>Sjekk:</strong> ${esc(kontrolltekst(k))}</div>`);
   if (r) for (const v of r.varsler) msgs.push(`<div class="msg ${v.niva}"><strong>${v.niva === "merk" ? "Merk:" : "Advarsel:"}</strong> ${esc(v.tekst)}</div>`);
   $("msgs").innerHTML = msgs.join("");
   const res = ["headline", "sub", "wf", "tabell", "note", "laan", "laanmerk"];
@@ -961,7 +1073,8 @@ async function hentBoligrente() {
   const beste = svar.filter(Boolean).sort((a, b) => String(b.hentet_iso).localeCompare(String(a.hentet_iso)))[0];
   if (!beste) return;
   BESTE_BOLIGRENTE = { ...BESTE_BOLIGRENTE, kilde: "automatisk", effektiv: beste.effektiv, nominell: beste.nominell, hentet: beste.hentet,
-    gyldigFra: beste.gyldig_fra || BESTE_BOLIGRENTE.gyldigFra, styringsrente: beste.styringsrente ?? BESTE_BOLIGRENTE.styringsrente };
+    gyldigFra: beste.gyldig_fra || BESTE_BOLIGRENTE.gyldigFra, styringsrente: beste.styringsrente ?? BESTE_BOLIGRENTE.styringsrente,
+    tabell: beste.tabell && beste.tabell.celler ? beste.tabell : null };
   oppdater();
 }
 
@@ -986,8 +1099,26 @@ function visLaan(r, b) {
   $("laan").classList.toggle("wide", b);
   $("laanmerk").innerHTML = `<p class="foot">Egen andel av hvert lån. Rente = årets renter i prosent av fjorårets saldo. År igjen er regnet som annuitetslån med årets rente og årets betaling (renter + avdrag), og forutsetter at begge gjelder videre. Et refinansiert lån har ofte ny løpetid, og over 20 % nedbetaling på ett år kan være ekstraordinært; da blir år igjen for kort.</p>`;
   if (L.some((l) => l.typ === "bolig")) {
-    const b = BESTE_BOLIGRENTE, pst = (x) => (x * 100).toFixed(2).replace(".", ",") + " %";
-    $("laanmerk").insertAdjacentHTML("beforeend", `<p class="foot">*) Beste boliglånsrente på Finansportalen (Forbrukerrådet) per ${b.hentet}${b.kilde === "automatisk" ? " (hentet automatisk)" : " (innebygd verdi – kunne ikke hente oppdatert rente)"}: <b>${pst(b.effektiv)} effektiv</b> (${pst(b.nominell)} nominell), ${b.vilkar}. Forutsetninger: ${b.forutsetninger}. Renten gjelder fra ${b.gyldigFra}; styringsrenten er ${pst(b.styringsrente)}. <a href="${b.url}" target="_blank" rel="noopener">Sjekk dagens rente på Finansportalen</a>.</p>`);
+    const b = BESTE_BOLIGRENTE, pst = (x) => (x * 100).toFixed(2).replace(".", ",") + " %", p0 = (x) => Math.round(x * 100) + " %";
+    const pk = r.rentepunkt, celle = pk && b.tabell ? b.tabell.celler[cellenokkel(pk)] : null;
+    const s = celle ? besteForAlder(celle, r.alder) : null;
+    const lenke = `<a href="${b.url}" target="_blank" rel="noopener">Sjekk dagens rente på Finansportalen</a>.`;
+    let tekst;
+    if (s) {
+      const pr = r.boligprofil;
+      const egne = L.filter((l) => l.typ === "bolig" && l.rente !== null).map((l) => pst(l.rente));
+      tekst = `*) Beste boliglånsrente på Finansportalen (Forbrukerrådet) per ${b.hentet} for et lån på om lag ${kr(pk.lan)} kr med belåningsgrad inntil ${p0(pk.belaning)}`
+        + (r.alder ? `, alder ${r.alder} år` : ", uten lån for unge (alder ukjent)")
+        + `: <b>${pst(s.e)} effektiv</b> (${pst(s.n)} nominell), flytende standardlån, landsdekkende, uten krav om medlemskap eller andre produkter.`
+        + (egne.length ? ` Din boliglånsrente i år: ${egne.join(", ")}.` : "")
+        + ` Din belåningsgrad: ${p0(pr.belaning)} (boliglån ${kr(pr.lan)} kr / boligverdi ${kr(pr.verdi)} kr, ${pr.verdikilde}).`
+        + ` Nærmeste punkt i rentetabellen er brukt; dine egne tall sendes ikke ut. ${lenke}`;
+    } else {
+      tekst = `*) Beste boliglånsrente på Finansportalen (Forbrukerrådet) per ${b.hentet}${b.kilde === "automatisk" ? " (hentet automatisk)" : " (innebygd verdi – kunne ikke hente oppdatert rente)"}: <b>${pst(b.effektiv)} effektiv</b> (${pst(b.nominell)} nominell), ${b.vilkar}. Forutsetninger: ${b.forutsetninger}. Renten gjelder fra ${b.gyldigFra}; styringsrenten er ${pst(b.styringsrente)}.`
+        + (pk ? " Rentetabellen for din lånestørrelse og belåningsgrad er ikke tilgjengelig, så det generelle tallet er vist." : r.boligprofil ? " Belåningsgraden er over 90 %, så den kan ikke sammenlignes." : "")
+        + ` ${lenke}`;
+    }
+    $("laanmerk").insertAdjacentHTML("beforeend", `<p class="foot">${tekst}</p>`);
   }
 }
 
