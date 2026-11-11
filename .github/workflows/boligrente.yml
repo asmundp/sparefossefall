@@ -1,0 +1,31 @@
+# Henter beste boliglånsrente fra Finansportalen hver morgen og lagrer den i beste_boligrente.json.
+# Siden og Python-programmet leser den filen og faller tilbake til innebygd verdi hvis den mangler.
+name: Oppdater beste boliglånsrente
+
+on:
+  schedule:
+    - cron: "23 5 * * *"     # hver dag kl. 05:23 UTC (06:23 norsk vintertid, 07:23 sommertid)
+  workflow_dispatch: {}       # gjør det mulig å kjøre jobben manuelt fra Actions-fanen
+
+permissions:
+  contents: write             # trengs for å lagre den oppdaterte filen i repoet
+
+jobs:
+  oppdater:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Hent beste boliglånsrente
+        run: python3 scripts/hent_boligrente.py
+      - name: Lagre filen (hentedatoen endres hver dag)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add beste_boligrente.json
+          if git diff --cached --quiet -- beste_boligrente.json; then
+            echo "Ingen endring."
+          else
+            git commit -m "Oppdater beste boliglånsrente"
+            git push
+          fi
