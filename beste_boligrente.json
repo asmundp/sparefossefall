@@ -2,13 +2,13 @@
   "effektiv": 0.0514,
   "nominell": 0.0502,
   "hentet": "11.11.2026",
-  "hentet_iso": "2026-11-11T10:18:12+01:00",
+  "hentet_iso": "2026-11-11T10:54:06+01:00",
   "gyldig_fra": "22.07.2026",
   "styringsrente": 0.045,
   "styringsrente_endret": "2026-09-25",
   "vilkar": "flytende standardlån, landsdekkende, uten krav om medlemskap eller andre produkter, inntil 75 % belåning",
   "forutsetninger": "lån 3 mill. kr, boligverdi 4 mill. kr, 25 års nedbetaling, 30 år gammel låntaker",
-  "antall_vurdert": 5,
+  "antall_vurdert": 41,
   "url": "https://www.forbrukerradet.no/finansportalen/bank/lan/boliglan",
   "kilde": "Finansportalen (Forbrukerrådet)"
 }
